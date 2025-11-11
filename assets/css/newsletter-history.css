@@ -1,0 +1,48 @@
+.gridHistory {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+}
+
+.containerHistory {
+    background-color: var(--e-global-color-secondary);
+    border: 3px solid var(--e-global-color-primary);
+    border-radius: 30px;
+    margin: 10px;
+    padding: 20px;
+    width: calc(25% - 20px);
+    min-height: 250px;
+    box-sizing: border-box;
+}
+
+.topHistory {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.topHistory div {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+}
+
+.btnHistory {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background-color: var(--e-global-color-primary) !important;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.3s;
+}
+
+.btnHistory:hover {
+    background-color: var(--e-global-color-accent) !important;
+}
