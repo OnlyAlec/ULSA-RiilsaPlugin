@@ -1,0 +1,5 @@
+/.env
+/.htaccess
+/composer.lock
+/docs
+/vendor
