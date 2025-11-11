@@ -1,0 +1,39 @@
+<mj-raw>
+  <!-- Item -->
+</mj-raw>
+<mj-column border-radius="10px" padding="10px" css-class="collection-item">
+  <mj-image
+    src="__img__"
+    fluid-on-mobile="true"
+    border-radius="5px"
+    href="__url__"
+    padding="0"
+  />
+
+  <mj-text
+    font-family="Indivisa Text Sans"
+    font-size="15px"
+    text-transform="uppercase"
+    font-weight="600"
+  >
+    __area__
+  </mj-text>
+  <mj-text
+    font-family="Indivisa Display Sans"
+    font-size="20px"
+    font-style="italic"
+  >
+    __title__
+  </mj-text>
+  <mj-button
+    align="left"
+    background-color="#890A03"
+    font-family="Indivisa Text Sans"
+    font-size="12px"
+    width="100%"
+    href="__url__"
+  >
+    Continúa
+  </mj-button>
+</mj-column>
+-- ITEM --

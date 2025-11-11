@@ -1,0 +1,12 @@
+<mj-raw>
+  <!-- Collection news -->
+</mj-raw>
+<mj-wrapper padding="5px 0px">
+  <mj-section
+    padding="20px 0px"
+    background-color="#F3F3F3"
+    border-radius="10px"
+  >
+    -- ITEM --
+  </mj-section>
+</mj-wrapper>

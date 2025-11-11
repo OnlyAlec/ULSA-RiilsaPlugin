@@ -1,0 +1,21 @@
+<mjml>
+  <mj-head>
+    <mj-style>
+      .br_20-outlook{ border: 1px solid #1b5686 !important; background:
+      linear-gradient(90deg, #1b5686 30%, #6d93b2 65%, #fff 90%); padding: 20px;
+      }
+    </mj-style>
+
+    <mj-style inline="inline">
+      .br_20{ border: 1px solid #1b5686 !important; border-radius: 20px
+      !important; background: linear-gradient(90deg, #1b5686 30%, #6d93b2 65%,
+      #fff 90%) !important; padding: 20px; } .img-cover img{max-height: 200px;
+      object-fit: cover;}
+    </mj-style>
+  </mj-head>
+  <mj-body>
+    -- HEADER --
+    -- REPLACE --
+    -- FOOTER --
+  </mj-body>
+</mjml>

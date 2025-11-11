@@ -1,0 +1,42 @@
+<mj-raw>
+  <!-- Footer -->
+</mj-raw>
+<mj-wrapper padding="20px 0">
+  <mj-section
+    padding="50px 0px"
+    background-color="#1b5686"
+    border-radius="0px 0px 20px 20px"
+  >
+    <mj-column>
+      <mj-image
+        src="https://riilsa.org/wp-content/plugins/wp_ulsa_riilsa/assets/img/email_footer.png"
+        alt="Logo RIILSA Color Blanco"
+      />
+    </mj-column>
+    <mj-column>
+      <mj-text
+        font-family="Indivisa Text Sans"
+        color="white"
+        font-weight="bold"
+      >
+        Universidad La Salle Mexico
+      </mj-text>
+      <mj-text font-family="Indivisa Text Sans" color="white">
+        Benjamín Franklin 45, Col. Condesa, C.P. 06140, Mexico, Ciudad de
+        Mexico. Tel. +52 (55) 5278-9500
+      </mj-text>
+    </mj-column>
+    <mj-column>
+      <mj-text
+        font-family="Indivisa Text Sans"
+        color="white"
+        font-weight="bold"
+      >
+        Direccion de Investigacion
+      </mj-text>
+      <mj-text font-family="Indivisa Text Sans" color="white">
+        Tel. +52 (644) 4106025 contacto@riilsa.net
+      </mj-text>
+    </mj-column>
+  </mj-section>
+</mj-wrapper>

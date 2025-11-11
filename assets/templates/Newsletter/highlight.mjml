@@ -1,0 +1,53 @@
+<mj-raw>
+  <!-- Highlight news -->
+</mj-raw>
+<mj-wrapper padding="0">
+  <mj-section css-class="br_20">
+    <mj-column vertical-align="middle" width="55%">
+      <mj-text
+        font-family="Indivisa Text Sans"
+        font-size="15px"
+        text-transform="uppercase"
+        font-weight="600"
+        color="white"
+      >
+        __area__
+      </mj-text>
+      <mj-text
+        font-family="Indivisa Display Sans"
+        font-size="26px"
+        font-weight="900"
+        color="white"
+      >
+        __title__
+      </mj-text>
+      <mj-text
+        font-family="Indivisa Text Sans"
+        font-size="18px"
+        font-weight="400"
+        color="white"
+      >
+        __description__</mj-text
+      >
+      <mj-button
+        align="left"
+        background-color="#7696cc"
+        width="140px"
+        font-family="Indivisa Text Sans"
+        font-size="13px"
+        padding-top="35px"
+        href="__url__"
+      >
+        Continúa
+      </mj-button>
+    </mj-column>
+    <mj-column vertical-align="middle" width="45%">
+      <mj-image
+        src="__img__"
+        fluid-on-mobile="true"
+        border-radius="20px"
+        href="__url__"
+      />
+    </mj-column>
+  </mj-section>
+</mj-wrapper>
