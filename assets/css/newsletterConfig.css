@@ -1,0 +1,85 @@
+.actions-wrapper button {
+    border: none;
+    cursor: pointer;
+    transition: transform 200ms cubic-bezier(.2, .8, .2, 1), box-shadow 200ms, background-color 200ms;
+}
+
+.actions-wrapper button:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Tabla de emails */
+.email-table {
+    border-collapse: separate;
+    border-spacing: 10px 0;
+}
+
+/* Cabecera */
+.email-table th {
+    background-color: #001D68;
+    border: 1px solid #ddd !important;
+    padding: 8px !important;
+    text-align: center !important;
+    border-radius: 10px 10px 0 0;
+    color: #ddd !important;
+    transition: background-color 200ms, transform 200ms, box-shadow 200ms;
+}
+
+.email-table th:hover {
+    background-color: #02257d;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+/* celdas */
+.email-table td {
+    padding: 8px !important;
+    text-align: left !important;
+    font-size: 14px !important;
+    transition: background-color 200ms, transform 200ms, box-shadow 200ms;
+}
+
+.email-table tr:hover td {
+    background-color: #f5f7ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.04);
+    border-radius: 6px;
+}
+
+.email-table td p {
+    color: #001D68 !important;
+}
+
+.email-table td:nth-child(3),
+.email-table td:nth-child(4) {
+    text-align: center;
+}
+
+/* estado/indicador */
+.status-wrapper {
+    max-width: 1rem;
+    max-height: 1rem;
+}
+
+/* acción (botón circular) */
+.action-config {
+    background-color: #890A03;
+    border-radius: 50%;
+    padding-top: 5px;
+    padding-left: 5px;
+    padding-right: 5px;
+    transition: transform 180ms cubic-bezier(.2, .8, .2, 1), background-color 180ms, box-shadow 180ms;
+    transform-origin: center;
+}
+
+.action-config:hover {
+    transform: scale(1.08);
+    background-color: #a11307;
+    box-shadow: 0 6px 14px rgba(161, 19, 7, 0.12);
+}
+
+.action-config svg path {
+    fill: white;
+    transition: fill 180ms;
+}
