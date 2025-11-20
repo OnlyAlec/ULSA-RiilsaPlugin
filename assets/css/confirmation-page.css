@@ -1,69 +1,69 @@
-.e-flex {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
-
-.icon-box-icon {
-    margin-bottom: 15px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.icon-circle:hover {
-    transform: scale(.9);
-}
-
-.icon-circle {
-    display: inline-block;
-    padding: .5em;
-    border-radius: 50%;
-    font-size: 80px;
-    color: #e8e6e3;
-    fill: #e8e6e3;
-    transition-duration: .3s;
-    transition-property: transform;
-    transition: all .3s;
-}
-
-.icon-circle.ok {
-    background-color: #21824e;
-}
-
-.icon-circle.fail {
-    background-color: #890A03;
-}
-
-.icon-circle svg {
-    display: block;
-    position: relative;
-    height: 1em;
-    width: 1em;
-}
-
-.icon-box-content {
-    text-align: center;
-}
-
-.icon-box-content h3 {
-    color: #001D68;
-    margin-bottom: .6666em !important;
-    line-height: 1.125;
-    margin: 0;
-    padding: 0;
-}
-
-.icon-box-title {
-    font-size: 46px !important;
-    font-weight: 900 !important;
-    font-family: "Indivisa Display Elementor";
-    font-style: italic;
-}
-
-.icon-box-description {
-    margin: 0;
-    font-size: 20px;
-    font-family: "Indivisa Text Elementor";
-    color: #7A7A7A;
+.e-flex {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.icon-box-icon {
+    margin-bottom: 15px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.icon-circle:hover {
+    transform: scale(.9);
+}
+
+.icon-circle {
+    display: inline-block;
+    padding: .5em;
+    border-radius: 50%;
+    font-size: 80px;
+    color: #e8e6e3;
+    fill: #e8e6e3;
+    transition-duration: .3s;
+    transition-property: transform;
+    transition: all .3s;
+}
+
+.icon-circle.ok {
+    background-color: #21824e;
+}
+
+.icon-circle.fail {
+    background-color: #890A03;
+}
+
+.icon-circle svg {
+    display: block;
+    position: relative;
+    height: 1em;
+    width: 1em;
+}
+
+.icon-box-content {
+    text-align: center;
+}
+
+.icon-box-content h3 {
+    color: #001D68;
+    margin-bottom: .6666em !important;
+    line-height: 1.125;
+    margin: 0;
+    padding: 0;
+}
+
+.icon-box-title {
+    font-size: 46px !important;
+    font-weight: 900 !important;
+    font-family: "Indivisa Display Elementor";
+    font-style: italic;
+}
+
+.icon-box-description {
+    margin: 0;
+    font-size: 20px;
+    font-family: "Indivisa Text Elementor";
+    color: #7A7A7A;
 }
