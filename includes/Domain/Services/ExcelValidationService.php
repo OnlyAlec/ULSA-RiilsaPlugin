@@ -67,7 +67,7 @@ class ExcelValidationService
             'Título',
             'Dos Bullets',
             'Cuerpo de la nota',
-            'Datos de contacto ',
+            'Datos de contacto',
             'Número de boletín',
             'Imagen de la nota',
             'Línea Generadora de Investigación'
@@ -95,6 +95,20 @@ class ExcelValidationService
     ];
     
     /**
+     * Normalize header string for comparison
+     * Removes all whitespace and converts to lowercase
+     *
+     * @param string $header
+     * @return string
+     */
+    private function normalizeHeader(string $header): string
+    {
+        // Explicitly replace non-breaking spaces (UTF-8: \xC2\xA0) and other common invisible chars
+        $header = str_replace(["\xc2\xa0", "\xa0"], ' ', $header);
+        return strtolower(preg_replace('/\s+/u', '', $header));
+    }
+
+    /**
      * Validate Excel structure
      *
      * @param array $headers The header row from Excel
@@ -112,7 +126,9 @@ class ExcelValidationService
         
         $expectedStructure = $this->excelStructures[$contentType];
         $errors = [];
-        $headerValues = array_map('trim', array_values($headers));
+        
+        // Normalize actual headers
+        $headerValues = array_values($headers);
         
         // Check for missing columns
         foreach ($expectedStructure as $index => $expectedColumn) {
@@ -121,16 +137,37 @@ class ExcelValidationService
                 continue;
             }
             
-            if ($headerValues[$index] !== $expectedColumn) {
+            // Compare normalized values
+            $normalizedActual = $this->normalizeHeader($headerValues[$index]);
+            $normalizedExpected = $this->normalizeHeader($expectedColumn);
+            
+            if ($normalizedActual !== $normalizedExpected) {
+                // Check if it's just a case of "Objetivo" vs "Objetivo del proyecto" which happens often
+                if (strpos($normalizedExpected, $normalizedActual) === 0 || strpos($normalizedActual, $normalizedExpected) === 0) {
+                    continue; // Allow partial matches if they start the same
+                }
+
                 $errors[] = "Column mismatch at position " . ($index + 1) . 
                            ": expected '{$expectedColumn}', found '{$headerValues[$index]}'";
             }
         }
         
-        // Check for extra columns
+        // Check for extra columns (optional, maybe we want to allow them?)
+        // For now we keep it strict but normalized
         if (count($headerValues) > count($expectedStructure)) {
+            // Only report if the extra columns have content
             $extraColumns = array_slice($headerValues, count($expectedStructure));
-            $errors[] = "Extra columns found: " . implode(', ', $extraColumns);
+            $hasContent = false;
+            foreach ($extraColumns as $col) {
+                if (!empty(trim($col))) {
+                    $hasContent = true;
+                    break;
+                }
+            }
+            
+            if ($hasContent) {
+                $errors[] = "Extra columns found: " . implode(', ', $extraColumns);
+            }
         }
         
         return [

@@ -69,6 +69,9 @@ class Bootstrap
         // Load text domain for internationalization
         $this->loadTextDomain();
 
+        // Check environment configuration
+        $this->checkEnvironment();
+
         // Initialize core components
         $this->initializeCore();
 
@@ -80,6 +83,28 @@ class Bootstrap
 
         // Register activation and deactivation hooks
         $this->registerLifecycleHooks();
+    }
+
+    /**
+     * Check environment configuration
+     *
+     * @return void
+     */
+    private function checkEnvironment(): void
+    {
+        // Load environment variables
+        if (file_exists(RIILSA_PLUGIN_DIR . '.env')) {
+            $dotenv = \Dotenv\Dotenv::createImmutable(RIILSA_PLUGIN_DIR);
+            $dotenv->safeLoad();
+        }
+
+        $apiKey = $_ENV['API_KEY'] ?? null;
+
+        if (!$apiKey && is_admin()) {
+            add_action('admin_notices', function () {
+                echo '<div class="notice notice-warning"><p>' . esc_html__('RIILSA Plugin: Brevo API key not configured. Email functionality is disabled.', 'riilsa') . '</p></div>';
+            });
+        }
     }
 
     /**
@@ -145,19 +170,18 @@ class Bootstrap
     private function initializePresentation(): void
     {
         // Initialize controllers
-        add_action('init', function () {
-            // Content Manager Controller
-            $contentManagerController = $this->container->make(ContentManagerController::class);
-            $contentManagerController->init();
 
-            // Newsletter Controller
-            $newsletterController = $this->container->make(NewsletterController::class);
-            $newsletterController->init();
+        // Content Manager Controller
+        $contentManagerController = $this->container->make(ContentManagerController::class);
+        $contentManagerController->init();
 
-            // Subscription Controller
-            $subscriptionController = $this->container->make(SubscriptionController::class);
-            $subscriptionController->init();
-        });
+        // Newsletter Controller
+        $newsletterController = $this->container->make(NewsletterController::class);
+        $newsletterController->init();
+
+        // Subscription Controller
+        $subscriptionController = $this->container->make(SubscriptionController::class);
+        $subscriptionController->init();
 
         // Register assets
         $this->registerAssets();
@@ -192,14 +216,21 @@ class Bootstrap
             if (is_page('gestion-boletin')) {
                 wp_enqueue_style(
                     'riilsa-newsletter-config',
-                    pluginUrl('assets/css/newsletter-config.css'),
+                    pluginUrl('assets/css/newsletterConfig.css'),
                     ['riilsa-main'],
                     pluginVersion()
                 );
 
                 wp_enqueue_style(
                     'riilsa-newsletter-history',
-                    pluginUrl('assets/css/newsletter-history.css'),
+                    pluginUrl('assets/css/newsletterHistory.css'),
+                    ['riilsa-main'],
+                    pluginVersion()
+                );
+
+                wp_enqueue_style(
+                    'riilsa-newsletter-select',
+                    pluginUrl('assets/css/newsletterSelection.css'),
                     ['riilsa-main'],
                     pluginVersion()
                 );
@@ -236,15 +267,20 @@ class Bootstrap
                     true
                 );
 
+                $brevoService = $this->container->get(\RIILSA\Infrastructure\Services\BrevoMailService::class);
+                $isBrevoAvailable = $brevoService->isAvailable();
+
                 // Localize script with AJAX data
                 wp_localize_script('riilsa-newsletter-general', 'riilsa_ajax', [
                     'ajax_url' => admin_url('admin-ajax.php'),
                     'nonce' => createNonce('newsletter_actions'),
+                    'brevo_available' => $isBrevoAvailable,
                     'strings' => [
                         'processing' => __('Processing...', 'riilsa'),
                         'success' => __('Success', 'riilsa'),
                         'error' => __('Error', 'riilsa'),
                         'warning' => __('Warning', 'riilsa'),
+                        'brevo_unavailable' => __('El servicio de envío de correos (Brevo) no está disponible en este momento.', 'riilsa')
                     ]
                 ]);
             }
@@ -258,11 +294,22 @@ class Bootstrap
                     pluginVersion()
                 );
             }
+
+            // Content Manager page specific assets
+            if (is_page('gestor-de-contenido')) {
+                wp_enqueue_script(
+                    'riilsa-contentManager-general',
+                    pluginUrl('assets/js/contentManager.js'),
+                    ['jquery'],
+                    pluginVersion(),
+                    true
+                );
+            }
         });
 
         // Admin assets
         add_action('admin_enqueue_scripts', function () {
-            // Add admin specific assets here if needed
+            // Chilling
         });
     }
 

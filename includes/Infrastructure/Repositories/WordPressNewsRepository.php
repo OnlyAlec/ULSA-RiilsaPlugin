@@ -351,6 +351,22 @@ class WordPressNewsRepository implements NewsRepositoryInterface
     /**
      * {@inheritdoc}
      */
+    public function existsByTitle(string $title): bool
+    {
+        $count = $this->wpdb->get_var($this->wpdb->prepare(
+            "SELECT COUNT(*) FROM {$this->wpdb->posts}
+             WHERE post_title = %s
+             AND post_type = %s AND post_status != 'trash'",
+            $title,
+            RIILSA_POST_TYPE_NEWS
+        ));
+        
+        return (int)$count > 0;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function existsByExternalId(string $externalId): bool
     {
         $count = $this->wpdb->get_var($this->wpdb->prepare(

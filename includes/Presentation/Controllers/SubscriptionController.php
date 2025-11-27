@@ -13,6 +13,7 @@ namespace RIILSA\Presentation\Controllers;
 
 use RIILSA\Application\UseCases\Newsletter\ConfirmSubscriptionUseCase;
 use RIILSA\Application\DTOs\SubscriptionConfirmationDTO;
+use function RIILSA\Core\debugLog;
 
 /**
  * Controller for subscription confirmation
@@ -86,7 +87,7 @@ class SubscriptionController
             
             // Render result page
             if ($result->success) {
-                $this->renderSuccessPage($result->message);
+                $this->renderSuccessPage($email, $result->message);
             } else {
                 $this->renderErrorPage($result->message);
             }
@@ -109,8 +110,8 @@ class SubscriptionController
     private function renderDefaultConfirmationPage(): void
     {
         $this->renderInfoPage(
-            __('Newsletter Subscription Confirmation', 'riilsa'),
-            __('Please click the confirmation link in your email to complete your subscription.', 'riilsa')
+            __('Ups! Parece que no deberias estar aquí...', 'riilsa'),
+            __('Si quieres validar tu suscripción a RIILSA, da click al enlace de confirmación de tu correo.', 'riilsa')
         );
         
         add_filter('the_content', [$this, 'replaceContent']);
@@ -122,12 +123,13 @@ class SubscriptionController
      * @param string $message
      * @return void
      */
-    private function renderSuccessPage(string $message): void
+    private function renderSuccessPage(string $email, string $message): void
     {
         $templatePath = RIILSA_PATH_PAGE_CONFIRM_OK;
         
         if (file_exists($templatePath)) {
             $html = file_get_contents($templatePath);
+            $html = str_replace('-- EMAIL --', esc_html($email), $html);
             $html = str_replace('-- MESSAGE --', esc_html($message), $html);
             $this->pageContent = $html;
         } else {

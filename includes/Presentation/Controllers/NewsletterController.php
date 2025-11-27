@@ -45,26 +45,22 @@ class NewsletterController
      */
     public function init(): void
     {
-        // Only initialize on newsletter management page or during AJAX
-        add_action('wp', function() {
+        // Register AJAX handlers if it's a relevant AJAX request
+        if (wp_doing_ajax()) {
             $ajaxActions = [
                 'controlEmails',
                 'controlDependencies',
                 'generateNewsletter',
                 'sendNewsletter',
                 'historyNewsletter',
-                'historyBoletin'
+                'historyBoletin',
+                'updateShortcodes'
             ];
             
-            $isNewsletterPage = is_page('gestion-boletin');
-            $isNewsletterAjax = wp_doing_ajax() && 
-                               isset($_REQUEST['action']) && 
-                               in_array($_REQUEST['action'], $ajaxActions);
-            
-            if ($isNewsletterPage || $isNewsletterAjax) {
+            if (isset($_REQUEST['action']) && in_array($_REQUEST['action'], $ajaxActions)) {
                 $this->registerAjaxHandlers();
             }
-        });
+        }
     }
     
     /**
@@ -87,5 +83,8 @@ class NewsletterController
         // Email and dependency management
         add_action('wp_ajax_controlEmails', [$this->ajaxHandler, 'handleControlEmails']);
         add_action('wp_ajax_controlDependencies', [$this->ajaxHandler, 'handleControlDependencies']);
+        
+        // Update shortcodes
+        add_action('wp_ajax_updateShortcodes', [$this->ajaxHandler, 'handleUpdateShortcodes']);
     }
 }

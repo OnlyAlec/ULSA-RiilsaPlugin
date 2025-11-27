@@ -20,6 +20,7 @@ use RIILSA\Domain\Entities\Call;
 use RIILSA\Domain\Repositories\ProjectRepositoryInterface;
 use RIILSA\Domain\Repositories\NewsRepositoryInterface;
 use RIILSA\Domain\Repositories\CallRepositoryInterface;
+use function RIILSA\Core\debugLog;
 
 /**
  * Use case for processing Excel files
@@ -254,6 +255,23 @@ class ProcessExcelFileUseCase
      */
     private function checkExists(array $row, string $contentType): bool
     {
+        // For all content types, check by title first if available
+        $title = (string)($row['titulo'] ?? '');
+        if (!empty($title)) {
+            $existsByTitle = match($contentType) {
+                'News' => $this->newsRepository->existsByTitle($title),
+                'Projects' => $this->projectRepository->existsByTitle($title),
+                'Calls' => $this->callRepository->existsByTitle($title),
+                default => false,
+            };
+            
+            if ($existsByTitle) {
+                return true;
+            }
+        }
+
+        // Fallback to external ID check if title check didn't find anything
+        // (This maintains backward compatibility if needed, though title is preferred now)
         $externalId = (string)($row['id'] ?? '');
         
         if (empty($externalId)) {
@@ -263,7 +281,6 @@ class ProcessExcelFileUseCase
         return match($contentType) {
             'Projects' => $this->projectRepository->existsByExternalId($externalId),
             'Calls' => $this->callRepository->existsByExternalId($externalId),
-            'News' => $this->newsRepository->existsByExternalId($externalId),
             default => false,
         };
     }

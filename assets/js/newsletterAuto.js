@@ -21,7 +21,7 @@
     }
 
     setupDateDisplay();
-    setupAutoSelectButton();
+    // setupAutoSelectButton() is handled in newsletterSelection.js to avoid duplication
   });
 
   /**
@@ -54,34 +54,6 @@
     const year = date.getFullYear();
     
     return `${day}/${month}/${year}`;
-  }
-
-  /**
-   * Setup auto-select button for recent news
-   */
-  function setupAutoSelectButton() {
-    const autoBtn = $('#b_newsAuto');
-    
-    if (!autoBtn.length) {
-      return;
-    }
-
-    autoBtn.on('click', function (e) {
-      e.preventDefault();
-
-      // Select all checkboxes in automatic newsletter section
-      $('#newsAuto .cb input').each(function () {
-        $(this).prop('checked', true).prop('disabled', true);
-      });
-
-      // Update counter if available
-      if (typeof window.updateNewsCounter === 'function') {
-        window.updateNewsCounter();
-      }
-
-      // Log action
-      console.log('Auto-selected news items for automatic newsletter');
-    });
   }
 
   /**

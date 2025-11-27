@@ -32,22 +32,19 @@ class ContentManagerController
     /**
      * Excel process action
      *
-     * @var ExcelProcessAction
+     * @var ExcelProcessAction|null
      */
-    private ExcelProcessAction $excelProcessAction;
+    private ?ExcelProcessAction $excelProcessAction = null;
     
     /**
      * Constructor
      *
      * @param ProcessExcelFileUseCase $processExcelFileUseCase
-     * @param ExcelProcessAction $excelProcessAction
      */
     public function __construct(
-        ProcessExcelFileUseCase $processExcelFileUseCase,
-        ExcelProcessAction $excelProcessAction
+        ProcessExcelFileUseCase $processExcelFileUseCase
     ) {
         $this->processExcelFileUseCase = $processExcelFileUseCase;
-        $this->excelProcessAction = $excelProcessAction;
     }
     
     /**
@@ -69,6 +66,17 @@ class ContentManagerController
      */
     public function registerExcelAction($formActionsRegistrar): void
     {
+        // Check if Elementor Pro class exists to avoid fatal errors
+        if (!class_exists('\ElementorPro\Modules\Forms\Classes\Action_Base')) {
+            error_log('RIILSA WARNING: Elementor Pro Action_Base class not found. Cannot register Excel action.');
+            return;
+        }
+
+        // Lazy instantiate the action to prevent loading it before Elementor Pro is ready
+        if ($this->excelProcessAction === null) {
+            $this->excelProcessAction = new ExcelProcessAction($this->processExcelFileUseCase);
+        }
+
         $formActionsRegistrar->register($this->excelProcessAction);
     }
 }

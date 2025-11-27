@@ -11,6 +11,8 @@ declare(strict_types=1);
 
 namespace RIILSA\Infrastructure\Database;
 
+use function RIILSA\Core\debugLog;
+
 /**
  * Database manager for handling database operations
  * 
@@ -25,21 +27,21 @@ class DatabaseManager
      * @var \wpdb
      */
     private \wpdb $wpdb;
-    
+
     /**
      * Database version option key
      *
      * @var string
      */
     private const DB_VERSION_KEY = 'riilsa_db_version';
-    
+
     /**
      * Current database schema version
      *
      * @var string
      */
-    private const CURRENT_DB_VERSION = '3.1.0';
-    
+    private const CURRENT_DB_VERSION = '3.1.3';
+
     /**
      * Constructor
      *
@@ -49,7 +51,7 @@ class DatabaseManager
     {
         $this->wpdb = $wpdb;
     }
-    
+
     /**
      * Initialize database
      *
@@ -58,23 +60,56 @@ class DatabaseManager
     public function init(): void
     {
         $installedVersion = get_option(self::DB_VERSION_KEY, '0.0.0');
-        
+
         if (version_compare($installedVersion, self::CURRENT_DB_VERSION, '<')) {
-            $this->runMigrations($installedVersion);
+            $this->createTables();
+            $this->updateTables();
         }
     }
-    
+
     /**
-     * Create database tables
-     *
+     * Update existing tables
+     * 
      * @return void
      */
+    private function updateTables(): void
+    {
+        $table = RIILSA_TABLE_NEWSLETTER_LOGS;
+        $dbname = $this->wpdb->dbname;
+
+        // Helper to check and add column
+        $checkAndAdd = function ($column, $type, $after) use ($table, $dbname) {
+            $row = $this->wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table' AND COLUMN_NAME = '$column'");
+            if (empty($row)) {
+                // Check if 'after' column exists
+                $afterRow = $this->wpdb->get_results("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$dbname' AND TABLE_NAME = '$table' AND COLUMN_NAME = '$after'");
+
+                $sql = "ALTER TABLE $table ADD $column $type DEFAULT NULL";
+                if (!empty($afterRow)) {
+                    $sql .= " AFTER $after";
+                }
+
+                $this->wpdb->query($sql);
+                debugLog("Added $column column to newsletter logs table", 'info');
+            }
+        };
+
+        $checkAndAdd('html_content', 'longtext', 'text_header');
+        $checkAndAdd('scheduled_at', 'datetime', 'html_content');
+        $checkAndAdd('sent_at', 'datetime', 'scheduled_at');
+        $checkAndAdd('date_updated', 'datetime', 'date_created');
+        $checkAndAdd('statistics', 'longtext', 'date_updated');
+    }    /**
+         * Create database tables
+         *
+         * @return void
+         */
     public function createTables(): void
     {
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        
+
         $charsetCollate = $this->wpdb->get_charset_collate();
-        
+
         // Newsletter emails table
         $sqlEmailTable = "CREATE TABLE IF NOT EXISTS " . RIILSA_TABLE_EMAIL . " (
             id bigint(20) NOT NULL AUTO_INCREMENT,
@@ -94,7 +129,7 @@ class DatabaseManager
             KEY status (status),
             KEY subscribed_at (subscribed_at)
         ) $charsetCollate;";
-        
+
         // Newsletter email tokens table
         $sqlTokenTable = "CREATE TABLE IF NOT EXISTS " . RIILSA_TABLE_EMAIL_TOKENS . " (
             email varchar(255) NOT NULL,
@@ -105,7 +140,7 @@ class DatabaseManager
             UNIQUE KEY token (token),
             KEY expires_at (expires_at)
         ) $charsetCollate;";
-        
+
         // Newsletter logs table
         $sqlLogsTable = "CREATE TABLE IF NOT EXISTS " . RIILSA_TABLE_NEWSLETTER_LOGS . " (
             id int(11) NOT NULL AUTO_INCREMENT,
@@ -127,7 +162,7 @@ class DatabaseManager
             KEY scheduled_at (scheduled_at),
             KEY sent_at (sent_at)
         ) $charsetCollate;";
-        
+
         // Dependency catalog table
         $sqlDependencyTable = "CREATE TABLE IF NOT EXISTS " . RIILSA_TABLE_DEPENDENCY_CATALOG . " (
             id int(11) NOT NULL AUTO_INCREMENT,
@@ -137,148 +172,21 @@ class DatabaseManager
             PRIMARY KEY (id),
             UNIQUE KEY description (description)
         ) $charsetCollate;";
-        
+
         // Execute table creation
         dbDelta($sqlEmailTable);
         dbDelta($sqlTokenTable);
         dbDelta($sqlLogsTable);
         dbDelta($sqlDependencyTable);
-        
+
         // Update database version
         update_option(self::DB_VERSION_KEY, self::CURRENT_DB_VERSION);
-        
+
         debugLog('Database tables created/updated successfully', 'info');
     }
-    
-    /**
-     * Run database migrations
-     *
-     * @param string $fromVersion
-     * @return void
-     */
-    private function runMigrations(string $fromVersion): void
-    {
-        debugLog("Running database migrations from version {$fromVersion}", 'info');
-        
-        // Run migrations in order
-        if (version_compare($fromVersion, '3.0.0', '<')) {
-            $this->migrateToV300();
-        }
-        
-        if (version_compare($fromVersion, '3.1.0', '<')) {
-            $this->migrateToV310();
-        }
-        
-        // Update version
-        update_option(self::DB_VERSION_KEY, self::CURRENT_DB_VERSION);
-        
-        debugLog('Database migrations completed successfully', 'info');
-    }
-    
-    /**
-     * Migrate to version 3.0.0
-     *
-     * @return void
-     */
-    private function migrateToV300(): void
-    {
-        // Create all tables
-        $this->createTables();
-    }
-    
-    /**
-     * Migrate to version 3.1.0
-     *
-     * @return void
-     */
-    private function migrateToV310(): void
-    {
-        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-        
-        $charsetCollate = $this->wpdb->get_charset_collate();
-        
-        // Add new columns if needed
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_EMAIL,
-            'external_id',
-            'VARCHAR(255) DEFAULT NULL AFTER status'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_EMAIL,
-            'ip_address',
-            'VARCHAR(45) DEFAULT NULL AFTER external_id'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_EMAIL,
-            'user_agent',
-            'VARCHAR(255) DEFAULT NULL AFTER ip_address'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_EMAIL,
-            'last_activity_at',
-            'DATETIME DEFAULT NULL AFTER unsubscribed_at'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_NEWSLETTER_LOGS,
-            'html_content',
-            'LONGTEXT DEFAULT NULL AFTER text_header'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_NEWSLETTER_LOGS,
-            'scheduled_at',
-            'DATETIME DEFAULT NULL AFTER html_content'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_NEWSLETTER_LOGS,
-            'sent_at',
-            'DATETIME DEFAULT NULL AFTER scheduled_at'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_NEWSLETTER_LOGS,
-            'date_updated',
-            'DATETIME DEFAULT NULL AFTER date_created'
-        );
-        
-        $this->addColumnIfNotExists(
-            RIILSA_TABLE_NEWSLETTER_LOGS,
-            'statistics',
-            'LONGTEXT DEFAULT NULL AFTER date_updated'
-        );
-    }
-    
-    /**
-     * Add column if it doesn't exist
-     *
-     * @param string $table
-     * @param string $column
-     * @param string $definition
-     * @return void
-     */
-    private function addColumnIfNotExists(string $table, string $column, string $definition): void
-    {
-        $columnExists = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-             WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
-            DB_NAME,
-            $table,
-            $column
-        ));
-        
-        if (!$columnExists) {
-            $sql = "ALTER TABLE {$table} ADD COLUMN {$column} {$definition}";
-            $this->wpdb->query($sql);
-            
-            debugLog("Added column {$column} to table {$table}", 'info');
-        }
-    }
-    
+
+
+
     /**
      * Drop table if exists
      *
@@ -289,7 +197,7 @@ class DatabaseManager
     {
         $this->wpdb->query("DROP TABLE IF EXISTS {$tableName}");
     }
-    
+
     /**
      * Truncate table
      *
@@ -300,7 +208,7 @@ class DatabaseManager
     {
         $this->wpdb->query("TRUNCATE TABLE {$tableName}");
     }
-    
+
     /**
      * Check if table exists
      *
@@ -313,10 +221,10 @@ class DatabaseManager
             "SHOW TABLES LIKE %s",
             $tableName
         ));
-        
+
         return $table === $tableName;
     }
-    
+
     /**
      * Get database version
      *

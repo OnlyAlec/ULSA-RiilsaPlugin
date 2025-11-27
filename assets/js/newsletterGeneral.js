@@ -74,21 +74,70 @@
    * Display error message in error container
    *
    * @param {string} message - Error message to display
+   * @param {string|null} details - Optional technical details
    */
-  window.showError = function (message) {
-    $("#errorContainer>.e-con-inner").prepend(`
-      <div class="alert alert-danger errorBoletin" role="alert">
-        ${escapeHtml(message)}
+  window.showError = function (message, details = null) {
+    // Remove existing errors
+    $(".errorBoletin").remove();
+    $(".riilsa-error-container").remove();
+
+    const errorHtml = `
+      <div class="riilsa-error-container" style="margin: 20px 0; padding: 15px; background-color: #f8d7da; border: 1px solid #f5c6cb; border-radius: 5px; color: #721c24;">
+        <div class="riilsa-error-header" style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center;">
+                <span class="dashicons dashicons-warning" style="font-size: 24px; margin-right: 10px; height: 24px; width: 24px;"></span>
+                <strong>${escapeHtml(message)}</strong>
+            </div>
+            ${details ? `
+            <button type="button" class="riilsa-error-toggle" style="background: none; border: none; cursor: pointer; color: #721c24; text-decoration: underline; font-size: 14px;">
+                Ver detalles
+            </button>
+            ` : ''}
+        </div>
+        ${details ? `
+        <div class="riilsa-error-details" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f5c6cb; font-family: monospace; white-space: pre-wrap; font-size: 12px;">
+            ${escapeHtml(typeof details === 'object' ? JSON.stringify(details, null, 2) : details)}
+        </div>
+        ` : ''}
       </div>
-    `);
+    `;
+
+    let target = $("#errorContainer>.e-con-inner");
+    if (target.length === 0) {
+        target = $("#errorContainer");
+    }
+    
+    if (target.length) {
+        target.prepend(errorHtml);
+    } else {
+        // Fallback if error container not found
+        const fallbackTarget = $('.entry-content, .post-content, #content, main').first();
+        if (fallbackTarget.length) {
+            fallbackTarget.prepend(errorHtml);
+        } else {
+            $('body').prepend(errorHtml);
+        }
+    }
+
+    // Add toggle functionality
+    if (details) {
+        $(".riilsa-error-toggle").on("click", function() {
+            const detailsDiv = $(this).closest(".riilsa-error-container").find(".riilsa-error-details");
+            detailsDiv.slideToggle();
+            $(this).text(detailsDiv.is(":visible") ? "Ver detalles" : "Ocultar detalles");
+        });
+    }
 
     // Scroll to error container
-    $("html, body").animate(
-      {
-        scrollTop: $("#errorContainer").offset().top,
-      },
-      1000
-    );
+    const errorElement = $(".riilsa-error-container").first();
+    if (errorElement.length) {
+        $("html, body").animate(
+        {
+            scrollTop: errorElement.offset().top - 100,
+        },
+        1000
+        );
+    }
   };
 
   /**
@@ -96,7 +145,7 @@
    *
    * @returns {Promise} Promise that resolves when send completes
    */
-  window.initSendBoletin = async function () {
+  window.initSendBoletin = async function (fromFrame = true) {
     const confirmSend = confirm(
       "Are you sure you want to send the newsletter?"
     );
@@ -104,14 +153,15 @@
     if (!confirmSend) {
       return Promise.reject("Send cancelled by user");
     }
-
+    let idNewsletter;
     const idSection = $(".btnSelection.active").attr("id").split("_")[1];
 
-    const idNewsletter =
-      $("#" + idSection)
-        .find(".numberBoletin")
-        .val() || $("#numBoletin h2").text();
-
+    if (fromFrame){
+      idNewsletter = $("#boletinPreview").data("idNewsletter");
+    } else {
+      idNewsletter = $("#" + idSection).find(".numberHistory").text().replace(/[^0-9]/g, '');
+    }
+    
     const htmlBoletin = $("#boletinPreview")
       .find("iframe")
       .prop("contentDocument").body.innerHTML;
@@ -138,8 +188,8 @@
         },
         success: function (response) {
           if (response.success === false) {
-            window.showError(response.message || response.data);
-            reject(response);
+            // Don't show error here, let the caller handle it to avoid duplicates
+            reject(response.message || response.data);
             return;
           }
 
@@ -153,6 +203,52 @@
           reject(error);
         },
       });
+    });
+  };
+
+  /**
+   * Setup async button with loading state and error handling
+   * 
+   * @param {jQuery} btn - Button element
+   * @param {Function} callback - Async function to execute on click. Receives the button as argument.
+   * @param {string} errorMessage - Error message to show on failure
+   */
+  window.setupAsyncButton = function(btn, callback, errorMessage) {
+    const icon = btn.find(".elementor-button-icon");
+
+    // Setup loading icon
+    if (icon.length !== 0) {
+      icon.addClass("fa-spin");
+      icon.hide();
+    }
+
+    // Setup click handler
+    btn.off("click").on("click", async function (e) {
+      e.preventDefault();
+
+      $(".errorBoletin").remove();
+      $(".riilsa-error-container").remove();
+
+      try {
+        $(this).css("pointer-events", "none");
+        
+        if (icon.length !== 0) {
+          window.toggleLoading(icon, btn);
+        }
+
+        await callback($(this));
+      } catch (error) {
+        console.error(errorMessage || "Action error:", error);
+        window.showError(
+          errorMessage || "Error processing request.",
+          error.message || error
+        );
+      } finally {
+        if (icon.length !== 0) {
+          window.toggleLoading(icon, btn);
+        }
+        $(this).css("pointer-events", "auto");
+      }
     });
   };
 
@@ -182,6 +278,9 @@
       $(this).on("click", function (e) {
         e.preventDefault();
 
+        $(".errorBoletin").remove();
+        $(".riilsa-error-container").remove();
+
         hideSections();
         wipeCheckbox();
         wipeActive();
@@ -194,34 +293,33 @@
 
     // Setup generate newsletter button
     $(".doBoletin").each(function () {
-      const btn = $(this);
-      const icon = btn.find(".elementor-button-icon");
-
-      if (icon.length !== 0) {
-        icon.addClass("fa-spin");
-        icon.hide();
-      }
-
-      btn.on("click", async function (e) {
-        e.preventDefault();
-
-        $(".errorBoletin").remove();
-
-        try {
-          $(this).css("pointer-events", "none");
-          window.toggleLoading(icon, btn);
-          await window.initGenerarBoletin();
-        } catch (error) {
-          console.error("Newsletter generation error:", error);
-          window.showError(
-            "Failed to generate newsletter: " + (error.message || error)
-          );
-        } finally {
-          window.toggleLoading(icon, btn);
-          $(this).css("pointer-events", "auto");
-        }
-      });
+      window.setupAsyncButton(
+        $(this),
+        async () => await window.initGenerarBoletin(),
+        "Error al generar el boletín."
+      );
     });
+
+    // Check Brevo availability on page load
+    if (typeof riilsa_ajax !== "undefined" && (riilsa_ajax.brevo_available === false || riilsa_ajax.brevo_available === "")) {
+      const message = riilsa_ajax.strings.brevo_unavailable || "Brevo service is unavailable";
+
+      const banner = `
+        <div class="riilsa-brevo-warning" style="background: #f8d7da; color: #721c24; padding: 15px; margin-bottom: 20px; border: 1px solid #f5c6cb; border-radius: 4px; text-align: center;">
+          <p style="margin: 0; font-weight: bold;">${message}</p>
+        </div>
+      `;
+
+      // Try to insert before the main content area if possible
+      const target = $(".entry-content, .post-content, #content, main").first();
+
+      if (target.length) {
+        target.prepend(banner);
+      } else {
+        // Fallback to body
+        $("body").prepend(banner);
+      }
+    }
   });
 
   /**
@@ -283,8 +381,7 @@
         },
         success: function (response) {
           if (response.success === false) {
-            window.showError(response.message || response.data);
-            reject(response.data || response.message);
+            reject(response.message || response.data);
             return;
           }
 
@@ -298,6 +395,7 @@
 
           containerFrame.empty();
           containerFrame.append(iframe);
+          containerFrame.data("idNewsletter", idNewsletter);
 
           // Write newsletter HTML to iframe
           iframe.contentWindow.document.open();
@@ -308,14 +406,16 @@
           $(".sendBoletin")
             .off("click")
             .on("click", function () {
-              window.initSendBoletin();
+              window.initSendBoletin().catch(function(error) {
+                  console.error("Send error:", error);
+                  window.showError("Error al enviar el boletín.", error.message || error);
+              });
             });
 
           display.show();
           resolve(true);
         },
         error: function (xhr, status, error) {
-          window.showError("Newsletter generation failed: " + error);
           reject(error);
         },
       });
@@ -344,10 +444,7 @@
         },
         success: function (response) {
           if (response.success === false) {
-            window.showError(
-              "Cannot send newsletter: " + (response.message || response.data)
-            );
-            reject(response);
+            reject(response.message || response.data);
             return;
           }
 
@@ -361,7 +458,6 @@
           resolve(true);
         },
         error: function (xhr, status, error) {
-          window.showError("Failed to send newsletter: " + error);
           reject(error);
         },
       });

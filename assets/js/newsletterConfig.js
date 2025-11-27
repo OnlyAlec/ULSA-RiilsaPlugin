@@ -64,7 +64,6 @@
    * @param {string} type - Button type ('action' or '')
    */
   function initButtons(btn, fn, type = "") {
-    const icon = btn.find(".elementor-button-icon");
     let args, shortcode;
 
     shortcode = btn.closest(".elementor-widget-button").data("shortcode");
@@ -76,42 +75,65 @@
 
     const container = $(`.shortcode-container[data-shortcode="${shortcode}"]`);
 
-    // Setup loading icon
-    if (icon.length !== 0) {
-      icon.addClass("fa-spin");
-      icon.hide();
-    }
+    if (typeof window.setupAsyncButton === 'function') {
+      window.setupAsyncButton(
+        btn,
+        async () => {
+          await fn(args);
 
-    // Setup click handler
-    btn.on("click", async function (e) {
-      e.preventDefault();
+          // Update container if exists
+          if (container && container.length) {
+            await window.updateContainer(container, shortcode);
+            setupEventHandlers(); // Re-attach events to new elements
+          }
+        },
+        "Ha ocurrido un error al procesar la solicitud."
+      );
+    } else {
+      // Fallback implementation
+      const icon = btn.find(".elementor-button-icon");
 
-      $(".errorBoletin").remove();
-
-      try {
-        $(this).css("pointer-events", "none");
-
-        if (icon.length !== 0) {
-          window.toggleLoading(icon, btn);
-        }
-
-        await fn(args);
-
-        // Update container if exists
-        if (container && container.length) {
-          await window.updateContainer(container, shortcode);
-          setupEventHandlers(); // Re-attach events to new elements
-        }
-      } catch (error) {
-        console.error("Button action error:", error);
-        window.showError("Operation failed: " + (error.message || error));
-      } finally {
-        if (icon.length !== 0) {
-          window.toggleLoading(icon, btn);
-        }
-        $(this).css("pointer-events", "auto");
+      // Setup loading icon
+      if (icon.length !== 0) {
+        icon.addClass("fa-spin");
+        icon.hide();
       }
-    });
+
+      // Remove existing click handler to prevent duplicates
+      btn.off("click");
+
+      // Setup click handler
+      btn.on("click", async function (e) {
+        e.preventDefault();
+
+        $(".errorBoletin").remove();
+
+        try {
+          $(this).css("pointer-events", "none");
+
+          if (icon.length !== 0) {
+            window.toggleLoading(icon, btn);
+          }
+
+          await fn(args);
+
+          // Update container if exists
+          if (container && container.length) {
+            await window.updateContainer(container, shortcode);
+            setupEventHandlers(); // Re-attach events to new elements
+          }
+        } catch (error) {
+          console.error("Button action error:", error);
+          const errorMessage = error.message || error;
+          window.showError("Ha ocurrido un error al procesar la solicitud.", errorMessage);
+        } finally {
+          if (icon.length !== 0) {
+            window.toggleLoading(icon, btn);
+          }
+          $(this).css("pointer-events", "auto");
+        }
+      });
+    }
   }
 
   /**

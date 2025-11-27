@@ -54,9 +54,24 @@
         }
 
         // Update counter display
-        updateNewsCounter();
+        window.updateNewsCounter();
       });
     });
+  }
+
+  /**
+   * Update news counter display
+   */
+  window.updateNewsCounter = function() {
+    const selectedCount = $(".cb input:checked").length;
+    $("#countNews h2").text(selectedCount);
+
+    // Update visual feedback based on limit
+    if (selectedCount >= MAX_NEWS_LIMIT) {
+      $("#countNews").addClass("at-limit");
+    } else {
+      $("#countNews").removeClass("at-limit");
+    }
   }
 
   /**
@@ -78,26 +93,11 @@
       });
 
       // Update counter
-      updateNewsCounter();
+      window.updateNewsCounter();
 
       // Show info message
       console.log("Auto-selected recent news items");
     });
-  }
-
-  /**
-   * Update news counter display
-   */
-  function updateNewsCounter() {
-    const selectedCount = $(".cb input:checked").length;
-    $("#countNews h2").text(selectedCount);
-
-    // Update visual feedback based on limit
-    if (selectedCount >= MAX_NEWS_LIMIT) {
-      $("#countNews").addClass("at-limit");
-    } else {
-      $("#countNews").removeClass("at-limit");
-    }
   }
 
   /**
@@ -118,7 +118,7 @@
    */
   window.clearNewsSelection = function () {
     $(".cb input").prop("checked", false).prop("disabled", false);
-    updateNewsCounter();
+    window.updateNewsCounter();
   };
 
   /**
@@ -127,12 +127,12 @@
    * @param {Array<string>} newsIds - Array of news IDs to select
    */
   window.selectNewsItems = function (newsIds) {
-    clearNewsSelection();
+    window.clearNewsSelection();
 
     newsIds.forEach(function (id) {
       $(`#${id} .cb input`).prop("checked", true);
     });
 
-    updateNewsCounter();
+    window.updateNewsCounter();
   };
 })(jQuery);

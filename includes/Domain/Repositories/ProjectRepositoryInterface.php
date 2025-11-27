@@ -141,7 +141,15 @@ interface ProjectRepositoryInterface
     public function deleteById(int $id): bool;
     
     /**
-     * Check if a project exists by external ID
+     * Check if project exists by title
+     *
+     * @param string $title
+     * @return bool
+     */
+    public function existsByTitle(string $title): bool;
+    
+    /**
+     * Check if project exists by external ID
      *
      * @param string $externalId
      * @return bool

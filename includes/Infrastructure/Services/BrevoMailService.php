@@ -28,9 +28,11 @@ use Brevo\Client\Model\CreateContact;
 use Brevo\Client\Model\UpdateContact;
 use Brevo\Client\Model\CreateList;
 
+use function RIILSA\Core\debugLog;
+
 /**
  * Brevo email service implementation
- * 
+ *
  * Pattern: Service Pattern
  * This class provides email sending capabilities using the Brevo API
  */
@@ -39,77 +41,86 @@ class BrevoMailService
     /**
      * API instances
      */
-    private EmailCampaignsApi $apiEmailCampaigns;
-    private ListsApi $apiLists;
-    private SendersApi $apiSenders;
-    private TransactionalEmailsApi $apiTransactionalEmails;
-    private ContactsApi $apiContacts;
-    
+    private ?EmailCampaignsApi $apiEmailCampaigns = null;
+    private ?ListsApi $apiLists = null;
+    private ?SendersApi $apiSenders = null;
+    private ?TransactionalEmailsApi $apiTransactionalEmails = null;
+    private ?ContactsApi $apiContacts = null;
+
+    /**
+     * Service configuration status
+     */
+    private bool $isConfigured = false;
+
     /**
      * Active sender
      *
      * @var array|null
      */
     private ?array $sender = null;
-    
+
     /**
      * Contact lists cache
      *
      * @var array|null
      */
     private ?array $contactLists = null;
-    
+
     /**
      * Constructor
      */
     public function __construct()
     {
         $this->initializeBrevoApis();
-        $this->loadSender();
-        $this->ensureContactLists();
+
+        if ($this->isConfigured) {
+            $this->loadSender();
+            $this->ensureContactLists();
+        }
     }
-    
+
     /**
      * Initialize Brevo API clients
      *
      * @return void
-     * @throws \RuntimeException
      */
     private function initializeBrevoApis(): void
     {
         // Load environment variables
         $dotenv = \Dotenv\Dotenv::createImmutable(RIILSA_PLUGIN_DIR);
         $dotenv->safeLoad();
-        
+
         $apiKey = $_ENV['API_KEY'] ?? null;
-        
+
         if (!$apiKey) {
-            throw new \RuntimeException('Brevo API key not configured');
+            debugLog('Brevo API key not configured', 'warning');
+            return;
         }
-        
+
         // Configure Brevo
         $config = Configuration::getDefaultConfiguration()->setApiKey('api-key', $apiKey);
         $client = new Client();
-        
+
         // Initialize API instances
         $this->apiEmailCampaigns = new EmailCampaignsApi($client, $config);
         $this->apiLists = new ListsApi($client, $config);
         $this->apiContacts = new ContactsApi($client, $config);
         $this->apiTransactionalEmails = new TransactionalEmailsApi($client, $config);
         $this->apiSenders = new SendersApi($client, $config);
+
+        $this->isConfigured = true;
     }
-    
+
     /**
      * Load active sender
      *
      * @return void
-     * @throws \RuntimeException
      */
     private function loadSender(): void
     {
         try {
             $senders = $this->apiSenders->getSenders();
-            
+
             foreach ($senders->getSenders() as $sender) {
                 if ($sender->getName() === RIILSA_MAIL_SENDER_NAME) {
                     $this->sender = [
@@ -120,32 +131,33 @@ class BrevoMailService
                     return;
                 }
             }
-            
-            throw new \RuntimeException('Brevo sender not found: ' . RIILSA_MAIL_SENDER_NAME);
-            
+
+            debugLog('Brevo sender not found: ' . RIILSA_MAIL_SENDER_NAME, 'error');
+            $this->isConfigured = false;
+
         } catch (\Exception $e) {
             debugLog('Failed to load Brevo sender: ' . $e->getMessage(), 'error');
-            throw new \RuntimeException('Failed to load Brevo sender: ' . $e->getMessage());
+            $this->isConfigured = false;
         }
     }
-    
+
     /**
      * Ensure contact lists exist
      *
      * @return void
      */
-    private function ensureContactLists(): void
+    private function ensureContactLists($skipId = -1)
     {
         try {
             $this->contactLists = $this->apiLists->getLists(RIILSA_MAIL_LIST_LIMIT, 0, "desc")->getLists();
-            
+
             // Get dependencies from database
             global $wpdb;
             $dependencies = $wpdb->get_results(
                 "SELECT * FROM " . RIILSA_TABLE_DEPENDENCY_CATALOG,
                 ARRAY_A
             );
-            
+
             if (empty($this->contactLists)) {
                 // Create lists for all dependencies
                 foreach ($dependencies as $dependency) {
@@ -154,19 +166,51 @@ class BrevoMailService
             } else {
                 // Check for missing lists
                 $existingNames = array_column($this->contactLists, 'name');
-                
+
                 foreach ($dependencies as $dependency) {
-                    if (!in_array($dependency['description'], $existingNames)) {
-                        $this->createContactList($dependency['description']);
+                    if ($skipId !== $dependency['id']) {
+                        if (!in_array($dependency['description'], $existingNames)) {
+                            $this->createContactList($dependency['description']);
+                        }
                     }
                 }
             }
-            
+
         } catch (\Exception $e) {
             debugLog('Failed to ensure contact lists: ' . $e->getMessage(), 'warning');
         }
     }
-    
+
+    /**
+     * Add contacts to list
+     *
+     * @param int $listId
+     * @param array $emails
+     * @return void
+     * @throws \RuntimeException
+     */
+    public function addContactsToList(int $listId, array $emails): void
+    {
+        if (!$this->isConfigured || empty($emails)) {
+            return;
+        }
+
+        try {
+            // Brevo API limits adding contacts in batches (usually 150 or similar, check docs)
+            // Safe batch size
+            $batchSize = 100;
+            $chunks = array_chunk($emails, $batchSize);
+
+            foreach ($chunks as $chunk) {
+                $contactEmails = new \Brevo\Client\Model\AddContactToList(['emails' => $chunk]);
+                $this->apiLists->addContactToList($listId, $contactEmails);
+            }
+
+        } catch (\Exception $e) {
+            throw new \RuntimeException('Failed to add contacts to list: ' . $e->getMessage());
+        }
+    }
+
     /**
      * Create contact list
      *
@@ -176,28 +220,32 @@ class BrevoMailService
      */
     public function createContactList(string $name): array
     {
+        if (!$this->isConfigured) {
+            return ['id' => 0, 'name' => $name];
+        }
+
         try {
             $newList = new CreateList([
                 'name' => $name,
                 'folderId' => 1
             ]);
-            
+
             $list = $this->apiLists->createList($newList);
-            
+
             // Refresh contact lists cache
             $this->contactLists = null;
             $this->ensureContactLists();
-            
+
             return [
                 'id' => $list->getId(),
                 'name' => $name,
             ];
-            
+
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to create contact list: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Create contact
      *
@@ -208,28 +256,32 @@ class BrevoMailService
      */
     public function createContact(string $email, int $dependencyId): string
     {
+        if (!$this->isConfigured) {
+            return '0';
+        }
+
         try {
             $listId = $this->getListIdByDependencyId($dependencyId);
-            
+
             if (!$listId) {
                 throw new \RuntimeException('List not found for dependency ID: ' . $dependencyId);
             }
-            
+
             $newContact = new CreateContact([
                 'email' => $email,
                 'listIds' => [$listId],
                 'emailBlacklisted' => true, // Pending confirmation
             ]);
-            
+
             $contact = $this->apiContacts->createContact($newContact);
-            
-            return (string)$contact->getId();
-            
+
+            return (string) $contact->getId();
+
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to create contact: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Confirm contact (remove from blacklist)
      *
@@ -239,18 +291,22 @@ class BrevoMailService
      */
     public function confirmContact(string $email): void
     {
+        if (!$this->isConfigured) {
+            return;
+        }
+
         try {
             $contact = $this->apiContacts->getContactInfo($email);
-            
+
             $updateData = new UpdateContact(['emailBlacklisted' => false]);
-            
+
             $this->apiContacts->updateContact($contact->getId(), $updateData);
-            
+
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to confirm contact: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Unsubscribe contact (add to blacklist)
      *
@@ -260,18 +316,22 @@ class BrevoMailService
      */
     public function unsubscribeContact(string $email): void
     {
+        if (!$this->isConfigured) {
+            return;
+        }
+
         try {
             $contact = $this->apiContacts->getContactInfo($email);
-            
+
             $updateData = new UpdateContact(['emailBlacklisted' => true]);
-            
+
             $this->apiContacts->updateContact($contact->getId(), $updateData);
-            
+
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to unsubscribe contact: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Delete contact
      *
@@ -281,13 +341,17 @@ class BrevoMailService
      */
     public function deleteContact(string $email): void
     {
+        if (!$this->isConfigured) {
+            return;
+        }
+
         try {
             $this->apiContacts->deleteContact($email);
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to delete contact: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Send transactional email
      *
@@ -298,6 +362,10 @@ class BrevoMailService
      */
     public function sendTransactionalEmail(string $email, array $data): void
     {
+        if (!$this->isConfigured) {
+            return;
+        }
+
         try {
             $sendSmtpEmail = new SendSmtpEmail([
                 'sender' => new SendSmtpEmailSender(['id' => $this->sender['id']]),
@@ -306,14 +374,14 @@ class BrevoMailService
                 'subject' => $data['subject'],
                 'tags' => $data['tags'] ?? ['RIILSA_TRANSACTIONAL'],
             ]);
-            
+
             $this->apiTransactionalEmails->sendTransacEmail($sendSmtpEmail);
-            
+
         } catch (\Exception $e) {
             throw new \RuntimeException('Failed to send transactional email: ' . $e->getMessage());
         }
     }
-    
+
     /**
      * Create and send email campaign
      *
@@ -332,11 +400,18 @@ class BrevoMailService
         string $subject,
         ?\DateTimeInterface $scheduledAt = null
     ): array {
+        if (!$this->isConfigured) {
+            return [
+                'success' => false,
+                'error' => 'Brevo service not configured',
+            ];
+        }
+
         try {
-            // Map dependency IDs to Brevo list IDs
             $brevoListIds = $this->mapDependencyIdsToListIds($listIds);
-            
+
             $campaignData = [
+                'name' => $subject,
                 'tag' => $tag,
                 'subject' => $subject,
                 'previewText' => $subject,
@@ -344,29 +419,89 @@ class BrevoMailService
                 'sender' => new CreateEmailCampaignSender(['id' => $this->sender['id']]),
                 'recipients' => new CreateEmailCampaignRecipients(['listIds' => $brevoListIds]),
             ];
-            
-            if ($scheduledAt) {
-                $campaignData['scheduledAt'] = $scheduledAt->format(\DateTime::ATOM);
+
+            // Use Mexico City timezone for scheduled date
+            $tz = new \DateTimeZone('America/Mexico_City');
+
+            if ($scheduledAt instanceof \DateTimeInterface) {
+                if ($scheduledAt instanceof \DateTimeImmutable) {
+                    $scheduledAtLocal = $scheduledAt->setTimezone($tz);
+                } else {
+                    $tmp = clone $scheduledAt;
+                    $tmp->setTimezone($tz);
+                    $scheduledAtLocal = $tmp;
+                }
+            } else {
+                $scheduledAtLocal = (new \DateTimeImmutable('now', $tz))->modify('+2 minutes');
             }
-            
+
+            $format = (defined('PHP_VERSION_ID') && PHP_VERSION_ID >= 70200) ? 'Y-m-d\TH:i:s.vP' : 'Y-m-d\TH:i:sP';
+            $campaignData['scheduledAt'] = $scheduledAtLocal->format($format);
+
             $createEmailCampaign = new CreateEmailCampaign($campaignData);
             $campaign = $this->apiEmailCampaigns->createEmailCampaign($createEmailCampaign);
-            
+
             return [
                 'success' => true,
                 'campaignId' => $campaign->getId(),
             ];
-            
+
         } catch (\Exception $e) {
             debugLog('Failed to create email campaign: ' . $e->getMessage(), 'error');
-            
+
             return [
                 'success' => false,
                 'error' => $e->getMessage(),
             ];
         }
     }
-    
+
+    /**
+     * Check if Brevo service is available
+     *
+     * @return bool
+     */
+    public function isAvailable(): bool
+    {
+        return $this->isConfigured;
+    }
+
+    /**
+     * Delete contact list
+     *
+     * @param int $listId
+     * @return void
+     * @throws \RuntimeException
+     */
+    public function deleteContactList(int $listId): void
+    {
+        if (!$this->isConfigured) {
+            return;
+        }
+
+        try {
+            $this->apiLists->deleteList($listId);
+        } catch (\Exception $e) {
+            throw new \RuntimeException('Failed to delete contact list: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete list by dependency ID
+     *
+     * @param int $dependencyId
+     * @return void
+     * @throws \RuntimeException
+     */
+    public function deleteListByDependencyId(int $dependencyId): void
+    {
+        $listId = $this->getListIdByDependencyId($dependencyId);
+
+        if ($listId) {
+            $this->deleteContactList($listId);
+        }
+    }
+
     /**
      * Get list ID by dependency ID
      *
@@ -376,26 +511,26 @@ class BrevoMailService
     private function getListIdByDependencyId(int $dependencyId): ?int
     {
         global $wpdb;
-        
+
         $dependency = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM " . RIILSA_TABLE_DEPENDENCY_CATALOG . " WHERE id = %d",
             $dependencyId
         ), ARRAY_A);
-        
+
         if (!$dependency) {
             return null;
         }
-        
+
         // Find corresponding list in Brevo
         foreach ($this->contactLists ?? [] as $list) {
             if ($list['name'] === $dependency['description']) {
                 return $list['id'];
             }
         }
-        
+
         return null;
     }
-    
+
     /**
      * Map dependency IDs to Brevo list IDs
      *
@@ -405,17 +540,17 @@ class BrevoMailService
     private function mapDependencyIdsToListIds(array $dependencyIds): array
     {
         $listIds = [];
-        
+
         foreach ($dependencyIds as $dependencyId) {
             $listId = $this->getListIdByDependencyId($dependencyId);
             if ($listId) {
                 $listIds[] = $listId;
             }
         }
-        
+
         return $listIds;
     }
-    
+
     /**
      * Get contact lists
      *
@@ -426,10 +561,10 @@ class BrevoMailService
         if ($this->contactLists === null) {
             $this->ensureContactLists();
         }
-        
+
         return $this->contactLists ?? [];
     }
-    
+
     /**
      * Get sender information
      *

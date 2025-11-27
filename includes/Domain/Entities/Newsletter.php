@@ -155,10 +155,13 @@ class Newsletter
             ? new \DateTimeImmutable($data['sent_at']) 
             : null;
         
-        // Load statistics if available
         if (isset($data['statistics'])) {
             $newsletter->statistics = json_decode($data['statistics'], true) ?? [];
         }
+
+        $newsletter->htmlContent = isset($data['html_content'])
+            ? (string)$data['html_content']
+            : null;
         
         return $newsletter;
     }

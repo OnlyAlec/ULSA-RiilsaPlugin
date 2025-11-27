@@ -33,6 +33,9 @@ define('RIILSA_PLUGIN_URL', plugin_dir_url(__FILE__));
 // Load Composer autoloader
 require_once RIILSA_PLUGIN_DIR . 'vendor/autoload.php';
 
+// Load helper functions
+require_once RIILSA_PLUGIN_DIR . 'includes/Core/helpers.php';
+
 // Initialize the plugin using Clean Architecture
 use RIILSA\Core\Bootstrap;
 use RIILSA\Core\Container;

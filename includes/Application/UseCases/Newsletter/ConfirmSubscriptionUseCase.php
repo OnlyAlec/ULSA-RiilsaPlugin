@@ -15,10 +15,13 @@ use RIILSA\Application\DTOs\SubscriptionConfirmationDTO;
 use RIILSA\Application\DTOs\SubscriptionResultDTO;
 use RIILSA\Domain\ValueObjects\Email;
 use RIILSA\Domain\Repositories\SubscriberRepositoryInterface;
+use RIILSA\Infrastructure\Services\BrevoMailService;
+
+use function RIILSA\Core\debugLog;
 
 /**
  * Use case for confirming newsletter subscriptions
- * 
+ *
  * Pattern: Use Case Pattern
  * This class handles the subscription confirmation process
  */
@@ -27,20 +30,20 @@ class ConfirmSubscriptionUseCase
     /**
      * Mail service interface
      *
-     * @var mixed
+     * @var BrevoMailService
      */
-    private $mailService;
-    
+    private BrevoMailService $mailService;
+
     /**
      * Constructor
      */
     public function __construct(
         private readonly SubscriberRepositoryInterface $subscriberRepository,
-        mixed $mailService // Will be injected from container
+        BrevoMailService $mailService
     ) {
         $this->mailService = $mailService;
     }
-    
+
     /**
      * Execute the use case
      *
@@ -57,18 +60,18 @@ class ConfirmSubscriptionUseCase
                     ['Invalid token format']
                 );
             }
-            
+
             // Find subscriber by email
             $email = Email::fromString($dto->email);
             $subscriber = $this->subscriberRepository->findByEmail($email);
-            
+
             if (!$subscriber) {
                 return SubscriptionResultDTO::failure(
                     'Subscription not found.',
                     ['No subscriber found with this email']
                 );
             }
-            
+
             // Check if already confirmed
             if ($subscriber->isConfirmed()) {
                 return SubscriptionResultDTO::success(
@@ -76,7 +79,7 @@ class ConfirmSubscriptionUseCase
                     null
                 );
             }
-            
+
             // Validate token
             if (!$subscriber->isTokenValid($dto->token)) {
                 return SubscriptionResultDTO::failure(
@@ -84,13 +87,13 @@ class ConfirmSubscriptionUseCase
                     ['Token mismatch or expired']
                 );
             }
-            
+
             // Confirm subscription
             $subscriber->confirm($dto->token);
-            
+
             // Save to database
             $this->subscriberRepository->save($subscriber);
-            
+
             // Update in mail service
             try {
                 $this->mailService->confirmContact($email->getValue());
@@ -98,35 +101,35 @@ class ConfirmSubscriptionUseCase
                 debugLog('Failed to confirm contact in mail service: ' . $e->getMessage(), 'warning');
                 // Continue even if mail service fails
             }
-            
+
             // Log successful confirmation
             debugLog(sprintf(
                 'Subscription confirmed for %s',
                 $email->getValue()
             ), 'info');
-            
+
             return SubscriptionResultDTO::success(
                 'Your subscription has been confirmed successfully!',
                 null
             );
-            
+
         } catch (\DomainException $e) {
             // Handle domain-specific exceptions
             return SubscriptionResultDTO::failure(
                 $e->getMessage(),
                 [$e->getMessage()]
             );
-            
+
         } catch (\Exception $e) {
             debugLog('Subscription confirmation error: ' . $e->getMessage(), 'error');
-            
+
             return SubscriptionResultDTO::failure(
                 'Confirmation failed. Please try again later.',
                 [$e->getMessage()]
             );
         }
     }
-    
+
     /**
      * Handle unsubscribe request
      *
@@ -140,14 +143,14 @@ class ConfirmSubscriptionUseCase
         try {
             $emailVO = Email::fromString($email);
             $subscriber = $this->subscriberRepository->findByEmail($emailVO);
-            
+
             if (!$subscriber) {
                 return SubscriptionResultDTO::failure(
                     'Subscription not found.',
                     ['No subscriber found with this email']
                 );
             }
-            
+
             // For unsubscribe, we use a different token validation
             // This could be implemented as a separate unsubscribe token
             // For now, we'll allow unsubscribe if the subscriber is confirmed
@@ -157,13 +160,13 @@ class ConfirmSubscriptionUseCase
                     ['Subscription must be confirmed to unsubscribe']
                 );
             }
-            
+
             // Unsubscribe
             $subscriber->unsubscribe($reason);
-            
+
             // Save to database
             $this->subscriberRepository->save($subscriber);
-            
+
             // Update in mail service
             try {
                 $this->mailService->unsubscribeContact($emailVO->getValue());
@@ -171,21 +174,21 @@ class ConfirmSubscriptionUseCase
                 debugLog('Failed to unsubscribe contact in mail service: ' . $e->getMessage(), 'warning');
                 // Continue even if mail service fails
             }
-            
+
             debugLog(sprintf(
                 'Unsubscribed %s. Reason: %s',
                 $emailVO->getValue(),
                 $reason ?: 'Not specified'
             ), 'info');
-            
+
             return SubscriptionResultDTO::success(
                 'You have been successfully unsubscribed from our newsletter.',
                 null
             );
-            
+
         } catch (\Exception $e) {
             debugLog('Unsubscribe error: ' . $e->getMessage(), 'error');
-            
+
             return SubscriptionResultDTO::failure(
                 'Unsubscribe failed. Please try again later.',
                 [$e->getMessage()]

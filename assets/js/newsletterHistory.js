@@ -52,7 +52,8 @@
       } catch (error) {
         console.error("Error updating history:", error);
         window.showError(
-          "Failed to load newsletter history: " + (error.message || error)
+          "Error al cargar el historial de boletines.",
+          error.message || error
         );
       } finally {
         loading.fadeOut();
@@ -67,44 +68,62 @@
   function setupHistoryItemHandlers() {
     $(".btnHistory.sendBoletin, .btnHistory.doBoletin").each(function () {
       const btn = $(this);
-      const icon = btn.find(".elementor-button-icon");
+      
+      if (typeof window.setupAsyncButton === 'function') {
+        window.setupAsyncButton(
+          btn,
+          async (button) => {
+            if (button.hasClass("sendBoletin")) {
+              await handleSendFromHistory(button);
+            } else if (button.hasClass("doBoletin")) {
+              await handleViewFromHistory(button);
+            }
+          },
+          "No se puede ver/enviar el boletín."
+        );
+      } else {
+        // Fallback if setupAsyncButton is not available (e.g. load order issues)
+        console.warn("setupAsyncButton not found, using fallback handler");
+        const icon = btn.find(".elementor-button-icon");
 
-      // Setup loading icon
-      if (icon.length !== 0) {
-        icon.addClass("fa-spin");
-        icon.hide();
-      }
-
-      // Setup click handler
-      btn.off("click").on("click", async function (e) {
-        e.preventDefault();
-
-        $(".errorBoletin").remove();
-        $(this).css("pointer-events", "none");
-
-        try {
-          if (icon.length !== 0) {
-            window.toggleLoading(icon, btn);
-          }
-
-          // Handle send or view action
-          if (btn.hasClass("sendBoletin")) {
-            await handleSendFromHistory($(this));
-          } else if (btn.hasClass("doBoletin")) {
-            await handleViewFromHistory($(this));
-          }
-        } catch (error) {
-          console.error("History action error:", error);
-          window.showError(
-            "Cannot view/send newsletter: " + (error.message || error)
-          );
-        } finally {
-          if (icon.length !== 0) {
-            window.toggleLoading(icon, btn);
-          }
-          $(this).css("pointer-events", "auto");
+        // Setup loading icon
+        if (icon.length !== 0) {
+          icon.addClass("fa-spin");
+          icon.hide();
         }
-      });
+
+        // Setup click handler
+        btn.off("click").on("click", async function (e) {
+          e.preventDefault();
+
+          $(".errorBoletin").remove();
+          $(this).css("pointer-events", "none");
+
+          try {
+            if (icon.length !== 0) {
+              window.toggleLoading(icon, btn);
+            }
+
+            // Handle send or view action
+            if (btn.hasClass("sendBoletin")) {
+              await handleSendFromHistory($(this));
+            } else if (btn.hasClass("doBoletin")) {
+              await handleViewFromHistory($(this));
+            }
+          } catch (error) {
+            console.error("History action error:", error);
+            window.showError(
+              "No se puede ver/enviar el boletín.",
+              error.message || error
+            );
+          } finally {
+            if (icon.length !== 0) {
+              window.toggleLoading(icon, btn);
+            }
+            $(this).css("pointer-events", "auto");
+          }
+        });
+      }
     });
   }
 
@@ -134,11 +153,8 @@
    * @returns {Promise} Promise that resolves when newsletter is sent
    */
   async function handleSendFromHistory(btn) {
-    // First, generate the newsletter to get HTML
     await handleViewFromHistory(btn.siblings(".doBoletin"));
-
-    // Then send it
-    return window.initSendBoletin();
+    return window.initSendBoletin(false);
   }
 
   /**

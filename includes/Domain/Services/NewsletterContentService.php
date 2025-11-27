@@ -53,9 +53,6 @@ class NewsletterContentService
             }
         }
 
-        // Sort news items by the order of selected IDs
-        $sortedNews = $this->sortNewsBySelection($newsItems, $selectedIds);
-
         // Categorize based on position
         $categorized = [
             'highlight' => [],
@@ -63,7 +60,7 @@ class NewsletterContentService
             'grid' => []
         ];
 
-        foreach ($sortedNews as $news) {
+        foreach ($newsItems as $news) {
             $position = $news->getPosition();
 
             if (!isset($categorized[$position])) {
@@ -85,32 +82,6 @@ class NewsletterContentService
         }
 
         return $categorized;
-    }
-
-    /**
-     * Sort news items by the order of selected IDs
-     *
-     * @param array<News> $newsItems
-     * @param array<int> $selectedIds
-     * @return array<News>
-     */
-    private function sortNewsBySelection(array $newsItems, array $selectedIds): array
-    {
-        // Create a map of ID to news item
-        $newsMap = [];
-        foreach ($newsItems as $news) {
-            $newsMap[$news->getId()] = $news;
-        }
-
-        // Sort by the order in selectedIds
-        $sorted = [];
-        foreach ($selectedIds as $id) {
-            if (isset($newsMap[$id])) {
-                $sorted[] = $newsMap[$id];
-            }
-        }
-
-        return $sorted;
     }
 
     /**
@@ -222,7 +193,7 @@ class NewsletterContentService
 
         // For more than 12 items, distribute evenly
         $remaining = $totalItems - 3; // Reserve 3 for highlights
-        $normalCount = min(9, (int)ceil($remaining / 2));
+        $normalCount = min(9, (int) ceil($remaining / 2));
         $gridCount = min(9, $remaining - $normalCount);
 
         return [
@@ -334,7 +305,7 @@ class NewsletterContentService
 
         // Calculate items per line
         $numLines = count($grouped);
-        $itemsPerLine = max(1, (int)floor($maxItems / $numLines));
+        $itemsPerLine = max(1, (int) floor($maxItems / $numLines));
         $remainder = $maxItems % $numLines;
 
         // Select items from each line

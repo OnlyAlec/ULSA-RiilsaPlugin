@@ -30,14 +30,14 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
      * @var \wpdb
      */
     private \wpdb $wpdb;
-    
+
     /**
      * Table name
      *
      * @var string
      */
     private string $tableName;
-    
+
     /**
      * Constructor
      *
@@ -48,26 +48,26 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
         $this->wpdb = $wpdb;
         $this->tableName = RIILSA_TABLE_NEWSLETTER_LOGS;
     }
-    
+
     /**
      * {@inheritdoc}
      */
     public function findById(int $id): ?Newsletter
     {
         $sql = $this->wpdb->prepare(
-            "SELECT * FROM {$this->tableName} WHERE id = %d",
+            "SELECT * FROM {$this->tableName} WHERE number = %d",
             $id
         );
-        
+
         $row = $this->wpdb->get_row($sql, ARRAY_A);
-        
+
         if (!$row) {
             return null;
         }
-        
+
         return Newsletter::fromDatabaseRecord($row);
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -77,16 +77,16 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             "SELECT * FROM {$this->tableName} WHERE number = %d",
             $number
         );
-        
+
         $row = $this->wpdb->get_row($sql, ARRAY_A);
-        
+
         if (!$row) {
             return null;
         }
-        
+
         return Newsletter::fromDatabaseRecord($row);
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -97,29 +97,29 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
         int $offset = 0
     ): array {
         $sql = "SELECT * FROM {$this->tableName}";
-        
+
         // Apply criteria (WHERE clause)
         $where = $this->buildWhereClauses($criteria);
         if (!empty($where)) {
             $sql .= " WHERE " . implode(' AND ', $where);
         }
-        
+
         // Apply ordering
         $sql .= $this->buildOrderByClause($orderBy);
-        
+
         // Apply limit and offset
         if ($limit !== null) {
             $sql .= $this->wpdb->prepare(" LIMIT %d OFFSET %d", $limit, $offset);
         }
-        
+
         $results = $this->wpdb->get_results($sql, ARRAY_A);
-        
+
         return array_map(
             fn($row) => Newsletter::fromDatabaseRecord($row),
             $results ?? []
         );
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -135,7 +135,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             $offset
         );
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -146,24 +146,24 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     ): array {
         $statusValues = array_map(fn($s) => $s->value, $statuses);
         $placeholders = implode(',', array_fill(0, count($statusValues), '%d'));
-        
+
         $sql = $this->wpdb->prepare(
             "SELECT * FROM {$this->tableName} WHERE id_status IN ({$placeholders}) ORDER BY number DESC",
             ...$statusValues
         );
-        
+
         if ($limit !== null) {
             $sql .= $this->wpdb->prepare(" LIMIT %d OFFSET %d", $limit, $offset);
         }
-        
+
         $results = $this->wpdb->get_results($sql, ARRAY_A);
-        
+
         return array_map(
             fn($row) => Newsletter::fromDatabaseRecord($row),
             $results ?? []
         );
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -178,15 +178,15 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             $dateRange->getStartDate()->format('Y-m-d H:i:s'),
             $dateRange->getEndDate()->format('Y-m-d H:i:s')
         );
-        
+
         $results = $this->wpdb->get_results($sql, ARRAY_A);
-        
+
         return array_map(
             fn($row) => Newsletter::fromDatabaseRecord($row),
             $results ?? []
         );
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -201,15 +201,15 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             $dateRange->getStartDate()->format('Y-m-d H:i:s'),
             $dateRange->getEndDate()->format('Y-m-d H:i:s')
         );
-        
+
         $results = $this->wpdb->get_results($sql, ARRAY_A);
-        
+
         return array_map(
             fn($row) => Newsletter::fromDatabaseRecord($row),
             $results ?? []
         );
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -220,7 +220,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             'taxonomy' => RIILSA_TAXONOMY_NEWSLETTER,
             'hide_empty' => false
         ]);
-        
+
         $lastNumberFromTax = 0;
         foreach ($boletines as $boletin) {
             $number = intval(preg_replace('/\D/', '', $boletin->name));
@@ -228,15 +228,15 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
                 $lastNumberFromTax = $number;
             }
         }
-        
+
         // Check database table
-        $lastNumberFromDb = (int)$this->wpdb->get_var(
+        $lastNumberFromDb = (int) $this->wpdb->get_var(
             "SELECT MAX(number) FROM {$this->tableName}"
         );
-        
+
         return max($lastNumberFromTax, $lastNumberFromDb);
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -244,7 +244,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     {
         return $this->getLastNewsletterNumber() + 1;
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -261,7 +261,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             'date_updated' => current_time('mysql'),
             'statistics' => json_encode($newsletter->getStatistics()),
         ];
-        
+
         if ($newsletter->getId()) {
             // Update existing
             $result = $this->wpdb->update(
@@ -271,30 +271,30 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
                 ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s'],
                 ['%d']
             );
-            
+
             if ($result === false) {
                 throw new \RuntimeException('Failed to update newsletter: ' . $this->wpdb->last_error);
             }
         } else {
             // Insert new
             $data['date_created'] = current_time('mysql');
-            
+
             $result = $this->wpdb->insert(
                 $this->tableName,
                 $data,
                 ['%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
             );
-            
+
             if ($result === false) {
                 throw new \RuntimeException('Failed to insert newsletter: ' . $this->wpdb->last_error);
             }
-            
+
             $newsletter->setId($this->wpdb->insert_id);
         }
-        
+
         return $newsletter;
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -303,10 +303,10 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
         if (!$newsletter->getId()) {
             return false;
         }
-        
+
         return $this->deleteById($newsletter->getId());
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -317,10 +317,10 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             ['id' => $id],
             ['%d']
         );
-        
+
         return $result !== false;
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -330,25 +330,25 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             "SELECT COUNT(*) FROM {$this->tableName} WHERE number = %d",
             $number
         ));
-        
-        return (int)$count > 0;
+
+        return (int) $count > 0;
     }
-    
+
     /**
      * {@inheritdoc}
      */
     public function count(array $criteria = []): int
     {
         $sql = "SELECT COUNT(*) FROM {$this->tableName}";
-        
+
         $where = $this->buildWhereClauses($criteria);
         if (!empty($where)) {
             $sql .= " WHERE " . implode(' AND ', $where);
         }
-        
-        return (int)$this->wpdb->get_var($sql);
+
+        return (int) $this->wpdb->get_var($sql);
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -356,7 +356,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     {
         return $this->count(['status' => $status]);
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -372,7 +372,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             'cancelled' => $this->countByStatus(NewsletterStatus::CANCELLED),
         ];
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -385,17 +385,17 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             ['%s'],
             ['%d']
         );
-        
+
         return $result !== false;
     }
-    
+
     /**
      * {@inheritdoc}
      */
     public function findReadyToSend(): array
     {
         $now = current_time('mysql');
-        
+
         $sql = $this->wpdb->prepare(
             "SELECT * FROM {$this->tableName} 
              WHERE id_status = %d 
@@ -404,44 +404,15 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
             NewsletterStatus::SCHEDULED->value,
             $now
         );
-        
+
         $results = $this->wpdb->get_results($sql, ARRAY_A);
-        
+
         return array_map(
             fn($row) => Newsletter::fromDatabaseRecord($row),
             $results ?? []
         );
     }
-    
-    /**
-     * {@inheritdoc}
-     */
-    public function lockForSending(int $newsletterId): bool
-    {
-        // Use database locking mechanism
-        $result = $this->wpdb->update(
-            $this->tableName,
-            ['id_status' => NewsletterStatus::SENDING->value],
-            [
-                'id' => $newsletterId,
-                'id_status' => NewsletterStatus::SCHEDULED->value
-            ],
-            ['%d'],
-            ['%d', '%d']
-        );
-        
-        return $result > 0;
-    }
-    
-    /**
-     * {@inheritdoc}
-     */
-    public function unlockAfterSending(int $newsletterId): bool
-    {
-        // This is handled by marking as sent or failed
-        return true;
-    }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -449,7 +420,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     {
         $this->wpdb->query('START TRANSACTION');
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -457,7 +428,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     {
         $this->wpdb->query('COMMIT');
     }
-    
+
     /**
      * {@inheritdoc}
      */
@@ -465,7 +436,7 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     {
         $this->wpdb->query('ROLLBACK');
     }
-    
+
     /**
      * Build WHERE clauses from criteria
      *
@@ -475,24 +446,24 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
     private function buildWhereClauses(array $criteria): array
     {
         $where = [];
-        
+
         if (isset($criteria['status'])) {
             $where[] = $this->wpdb->prepare(
                 'id_status = %d',
                 $criteria['status']->value
             );
         }
-        
+
         if (isset($criteria['number'])) {
             $where[] = $this->wpdb->prepare(
                 'number = %d',
                 $criteria['number']
             );
         }
-        
+
         return $where;
     }
-    
+
     /**
      * Build ORDER BY clause
      *
@@ -504,20 +475,20 @@ class DatabaseNewsletterRepository implements NewsletterRepositoryInterface
         if (empty($orderBy)) {
             return ' ORDER BY number DESC';
         }
-        
+
         $field = key($orderBy);
         $direction = current($orderBy);
-        
-        $column = match($field) {
+
+        $column = match ($field) {
             'number' => 'number',
             'createdAt' => 'date_created',
             'sentAt' => 'sent_at',
             'scheduledAt' => 'scheduled_at',
             default => 'number',
         };
-        
+
         $order = strtoupper($direction) === 'ASC' ? 'ASC' : 'DESC';
-        
+
         return " ORDER BY {$column} {$order}";
     }
 }

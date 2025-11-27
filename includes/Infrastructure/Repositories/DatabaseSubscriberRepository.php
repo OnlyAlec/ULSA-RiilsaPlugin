@@ -57,6 +57,24 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         $this->emailTable = RIILSA_TABLE_EMAIL;
         $this->tokenTable = RIILSA_TABLE_EMAIL_TOKENS;
     }
+
+    /**
+     * Get common select fields mapped to entity properties
+     * 
+     * @return string
+     */
+    private function getSelectFields(): string
+    {
+        return "e.id, 
+                e.email, 
+                e.id_dependency as dependency_id, 
+                CASE WHEN e.verified = 1 THEN 'confirmed' ELSE 'pending' END as status,
+                e.id_brevo as external_id, 
+                e.date_added as subscribed_at,
+                e.date_opt_in as confirmed_at,
+                t.token, 
+                t.date_expire as token_expires_at";
+    }
     
     /**
      * {@inheritdoc}
@@ -64,9 +82,9 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     public function findById(int $id): ?Subscriber
     {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->emailTable} e
-             LEFT JOIN {$this->tokenTable} t ON e.email = t.email
+             LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email
              WHERE e.id = %d",
             $id
         );
@@ -86,9 +104,9 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     public function findByEmail(Email $email): ?Subscriber
     {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->emailTable} e
-             LEFT JOIN {$this->tokenTable} t ON e.email = t.email
+             LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email
              WHERE e.email = %s",
             $email->getValue()
         );
@@ -108,10 +126,10 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     public function findByExternalId(string $externalId): ?Subscriber
     {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->emailTable} e
-             LEFT JOIN {$this->tokenTable} t ON e.email = t.email
-             WHERE e.external_id = %s",
+             LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email
+             WHERE e.id_brevo = %s",
             $externalId
         );
         
@@ -130,9 +148,9 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     public function findByToken(string $token): ?Subscriber
     {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->tokenTable} t
-             INNER JOIN {$this->emailTable} e ON t.email = e.email
+             INNER JOIN {$this->emailTable} e ON t.id_email = e.id
              WHERE t.token = %s",
             $token
         );
@@ -155,9 +173,9 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         ?int $limit = null,
         int $offset = 0
     ): array {
-        $sql = "SELECT e.*, t.token, t.expires_at as token_expires_at
+        $sql = "SELECT " . $this->getSelectFields() . "
                 FROM {$this->emailTable} e
-                LEFT JOIN {$this->tokenTable} t ON e.email = t.email";
+                LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email";
         
         $where = $this->buildWhereClauses($criteria);
         if (!empty($where)) {
@@ -225,20 +243,23 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
      */
     public function findRecipients(?array $dependencyIds = null): array
     {
-        $sql = "SELECT e.*, t.token, t.expires_at as token_expires_at
+        $sql = "SELECT " . $this->getSelectFields() . "
                 FROM {$this->emailTable} e
-                LEFT JOIN {$this->tokenTable} t ON e.email = t.email
-                WHERE e.status = %s";
+                LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email
+                WHERE e.verified = 1";
         
-        $params = [SubscriberStatus::CONFIRMED->value];
+        $params = [];
         
         if ($dependencyIds !== null && !empty($dependencyIds)) {
             $placeholders = implode(',', array_fill(0, count($dependencyIds), '%d'));
-            $sql .= " AND e.dependency_id IN ({$placeholders})";
+            $sql .= " AND e.id_dependency IN ({$placeholders})";
             $params = array_merge($params, $dependencyIds);
         }
         
-        $sql = $this->wpdb->prepare($sql, ...$params);
+        if (!empty($params)) {
+            $sql = $this->wpdb->prepare($sql, ...$params);
+        }
+        
         $results = $this->wpdb->get_results($sql, ARRAY_A);
         
         return array_map(
@@ -271,13 +292,12 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     public function findWithExpiredTokens(): array
     {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->tokenTable} t
-             INNER JOIN {$this->emailTable} e ON t.email = e.email
-             WHERE t.expires_at < %s
-             AND e.status = %s",
-            current_time('mysql'),
-            SubscriberStatus::PENDING->value
+             INNER JOIN {$this->emailTable} e ON t.id_email = e.id
+             WHERE t.date_expire < %s
+             AND e.verified = 0",
+            current_time('mysql')
         );
         
         $results = $this->wpdb->get_results($sql, ARRAY_A);
@@ -297,11 +317,11 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         int $offset = 0
     ): array {
         $sql = $this->wpdb->prepare(
-            "SELECT e.*, t.token, t.expires_at as token_expires_at
+            "SELECT " . $this->getSelectFields() . "
              FROM {$this->emailTable} e
-             LEFT JOIN {$this->tokenTable} t ON e.email = t.email
+             LEFT JOIN {$this->tokenTable} t ON e.id = t.id_email
              WHERE e.email LIKE %s
-             ORDER BY e.subscribed_at DESC",
+             ORDER BY e.date_added DESC",
             '%' . $this->wpdb->esc_like($keyword) . '%'
         );
         
@@ -324,15 +344,11 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     {
         $emailData = [
             'email' => $subscriber->getEmail()->getValue(),
-            'dependency_id' => $subscriber->getDependencyId(),
-            'status' => $subscriber->getStatus()->value,
-            'external_id' => $subscriber->getExternalId(),
-            'ip_address' => $subscriber->getIpAddress(),
-            'user_agent' => $subscriber->getUserAgent(),
-            'subscribed_at' => $subscriber->getSubscribedAt()->format('Y-m-d H:i:s'),
-            'confirmed_at' => $subscriber->getConfirmedAt()?->format('Y-m-d H:i:s'),
-            'unsubscribed_at' => $subscriber->getUnsubscribedAt()?->format('Y-m-d H:i:s'),
-            'last_activity_at' => $subscriber->getLastActivityAt()?->format('Y-m-d H:i:s'),
+            'id_dependency' => $subscriber->getDependencyId(),
+            'verified' => ($subscriber->getStatus() === SubscriberStatus::CONFIRMED) ? 1 : 0,
+            'id_brevo' => $subscriber->getExternalId(),
+            'date_added' => $subscriber->getSubscribedAt()->format('Y-m-d H:i:s'),
+            'date_opt_in' => $subscriber->getConfirmedAt()?->format('Y-m-d H:i:s'),
         ];
         
         if ($subscriber->getId()) {
@@ -341,7 +357,7 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
                 $this->emailTable,
                 $emailData,
                 ['id' => $subscriber->getId()],
-                ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'],
+                ['%s', '%d', '%d', '%s', '%s', '%s'],
                 ['%d']
             );
             
@@ -353,7 +369,7 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
             $result = $this->wpdb->insert(
                 $this->emailTable,
                 $emailData,
-                ['%s', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+                ['%s', '%d', '%d', '%s', '%s', '%s']
             );
             
             if ($result === false) {
@@ -367,7 +383,7 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         if ($subscriber->getConfirmationToken()) {
             $this->saveToken($subscriber);
         } else {
-            $this->deleteToken($subscriber->getEmail()->getValue());
+            $this->deleteToken($subscriber->getId());
         }
         
         return $subscriber;
@@ -390,11 +406,8 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
      */
     public function deleteById(int $id): bool
     {
-        // First get the email to delete token
-        $subscriber = $this->findById($id);
-        if ($subscriber) {
-            $this->deleteToken($subscriber->getEmail()->getValue());
-        }
+        // First delete token
+        $this->deleteToken($id);
         
         $result = $this->wpdb->delete(
             $this->emailTable,
@@ -440,7 +453,7 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
      */
     public function count(array $criteria = []): int
     {
-        $sql = "SELECT COUNT(*) FROM {$this->emailTable}";
+        $sql = "SELECT COUNT(*) FROM {$this->emailTable} e";
         
         $where = $this->buildWhereClauses($criteria);
         if (!empty($where)) {
@@ -508,15 +521,14 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         };
         
         $sql = $this->wpdb->prepare(
-            "SELECT DATE_FORMAT(subscribed_at, %s) as period,
+            "SELECT DATE_FORMAT(date_added, %s) as period,
                     COUNT(*) as count,
-                    SUM(CASE WHEN status = %s THEN 1 ELSE 0 END) as confirmed
+                    SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) as confirmed
              FROM {$this->emailTable}
-             WHERE subscribed_at BETWEEN %s AND %s
+             WHERE date_added BETWEEN %s AND %s
              GROUP BY period
              ORDER BY period ASC",
             $dateFormat,
-            SubscriberStatus::CONFIRMED->value,
             $dateRange->getStartDate()->format('Y-m-d'),
             $dateRange->getEndDate()->format('Y-m-d')
         );
@@ -534,13 +546,13 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         }
         
         $placeholders = implode(',', array_fill(0, count($subscriberIds), '%d'));
+        $verified = ($status === SubscriberStatus::CONFIRMED) ? 1 : 0;
         
         $sql = $this->wpdb->prepare(
             "UPDATE {$this->emailTable}
-             SET status = %s, last_activity_at = %s
+             SET verified = %d
              WHERE id IN ({$placeholders})",
-            $status->value,
-            current_time('mysql'),
+            $verified,
             ...$subscriberIds
         );
         
@@ -580,30 +592,31 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     private function saveToken(Subscriber $subscriber): void
     {
         $tokenData = [
-            'email' => $subscriber->getEmail()->getValue(),
+            'id_email' => $subscriber->getId(),
             'token' => $subscriber->getConfirmationToken(),
-            'expires_at' => $subscriber->getTokenExpiresAt()->format('Y-m-d H:i:s'),
+            'date_expire' => $subscriber->getTokenExpiresAt()->format('Y-m-d H:i:s'),
+            'date_created' => current_time('mysql'),
         ];
         
         // Check if token exists
         $exists = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$this->tokenTable} WHERE email = %s",
-            $subscriber->getEmail()->getValue()
+            "SELECT COUNT(*) FROM {$this->tokenTable} WHERE id_email = %d",
+            $subscriber->getId()
         ));
         
         if ($exists) {
             $this->wpdb->update(
                 $this->tokenTable,
                 $tokenData,
-                ['email' => $subscriber->getEmail()->getValue()],
-                ['%s', '%s', '%s'],
-                ['%s']
+                ['id_email' => $subscriber->getId()],
+                ['%d', '%s', '%s', '%s'],
+                ['%d']
             );
         } else {
             $this->wpdb->insert(
                 $this->tokenTable,
                 $tokenData,
-                ['%s', '%s', '%s']
+                ['%d', '%s', '%s', '%s']
             );
         }
     }
@@ -611,15 +624,15 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     /**
      * Delete confirmation token
      *
-     * @param string $email
+     * @param int $subscriberId
      * @return void
      */
-    private function deleteToken(string $email): void
+    private function deleteToken(int $subscriberId): void
     {
         $this->wpdb->delete(
             $this->tokenTable,
-            ['email' => $email],
-            ['%s']
+            ['id_email' => $subscriberId],
+            ['%d']
         );
     }
     
@@ -634,22 +647,23 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         $where = [];
         
         if (isset($criteria['status'])) {
+            $verified = ($criteria['status'] === SubscriberStatus::CONFIRMED) ? 1 : 0;
             $where[] = $this->wpdb->prepare(
-                'e.status = %s',
-                $criteria['status']->value
+                'e.verified = %d',
+                $verified
             );
         }
         
         if (isset($criteria['dependency_id'])) {
             $where[] = $this->wpdb->prepare(
-                'e.dependency_id = %d',
+                'e.id_dependency = %d',
                 $criteria['dependency_id']
             );
         }
         
         if (isset($criteria['date_range'])) {
             $where[] = $this->wpdb->prepare(
-                'e.subscribed_at BETWEEN %s AND %s',
+                'e.date_added BETWEEN %s AND %s',
                 $criteria['date_range']->getStartDate()->format('Y-m-d'),
                 $criteria['date_range']->getEndDate()->format('Y-m-d')
             );
@@ -667,7 +681,7 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
     private function buildOrderByClause(array $orderBy): string
     {
         if (empty($orderBy)) {
-            return ' ORDER BY e.subscribed_at DESC';
+            return ' ORDER BY e.date_added DESC';
         }
         
         $field = key($orderBy);
@@ -675,10 +689,9 @@ class DatabaseSubscriberRepository implements SubscriberRepositoryInterface
         
         $column = match($field) {
             'email' => 'e.email',
-            'subscribedAt' => 'e.subscribed_at',
-            'confirmedAt' => 'e.confirmed_at',
-            'lastActivityAt' => 'e.last_activity_at',
-            default => 'e.subscribed_at',
+            'subscribedAt' => 'e.date_added',
+            'confirmedAt' => 'e.date_opt_in',
+            default => 'e.date_added',
         };
         
         $order = strtoupper($direction) === 'ASC' ? 'ASC' : 'DESC';

@@ -13,6 +13,8 @@ namespace RIILSA\Application\Services;
 
 use RIILSA\Domain\Entities\Newsletter;
 use RIILSA\Domain\Entities\News;
+use function RIILSA\Core\debugLog;
+use function RIILSA\Core\pluginUrl;
 
 /**
  * Application service for generating newsletter templates
@@ -35,7 +37,7 @@ class TemplateGenerationService
         'normal' => RIILSA_PATH_TEMPLATE_NORMAL,
         'space' => RIILSA_PATH_TEMPLATE_SPACE,
     ];
-    
+
     /**
      * Generate HTML for newsletter
      *
@@ -47,22 +49,22 @@ class TemplateGenerationService
     {
         // Load base template
         $baseTemplate = $this->loadTemplate('base');
-        
+
         // Replace header text and ID
         $html = $this->replaceBasePlaceholders($baseTemplate, $newsletter);
-        
+
         // Generate content sections
         $contentHtml = $this->generateContentSections($newsletter->getCategorizedNews());
-        
+
         // Replace content placeholder
         $html = str_replace('-- REPLACE --', $contentHtml, $html);
-        
+
         // Post-process the HTML
         $html = $this->postProcessHtml($html);
-        
+
         return $html;
     }
-    
+
     /**
      * Load template file
      *
@@ -75,21 +77,21 @@ class TemplateGenerationService
         if (!isset($this->templatePaths[$templateName])) {
             throw new \RuntimeException("Unknown template: {$templateName}");
         }
-        
+
         $path = $this->templatePaths[$templateName];
-        
+
         if (!file_exists($path)) {
             throw new \RuntimeException("Template file not found: {$path}");
         }
-        
+
         $content = file_get_contents($path);
         if ($content === false) {
             throw new \RuntimeException("Failed to read template: {$path}");
         }
-        
+
         return $content;
     }
-    
+
     /**
      * Replace base template placeholders
      *
@@ -101,17 +103,17 @@ class TemplateGenerationService
     {
         $replacements = [
             '-- HEADER --' => $newsletter->getHeaderText(),
-            '-- ID --' => (string)$newsletter->getNumber(),
+            '-- ID --' => (string) $newsletter->getNumber(),
             '-- DATE --' => $this->formatDate(new \DateTime()),
         ];
-        
+
         return str_replace(
             array_keys($replacements),
             array_values($replacements),
             $template
         );
     }
-    
+
     /**
      * Generate content sections
      *
@@ -121,26 +123,26 @@ class TemplateGenerationService
     private function generateContentSections(array $categorizedNews): string
     {
         $sections = [];
-        
+
         // Process highlights
         if (!empty($categorizedNews['highlight'])) {
             $sections = array_merge($sections, $this->generateHighlights($categorizedNews['highlight']));
         }
-        
+
         // Process normal news
         if (!empty($categorizedNews['normal'])) {
             $sections = array_merge($sections, $this->generateNormalNews($categorizedNews['normal']));
         }
-        
+
         // Process grid news
         if (!empty($categorizedNews['grid'])) {
             $sections = array_merge($sections, $this->generateGridNews($categorizedNews['grid']));
         }
-        
+
         // Interleave with spacers
         return $this->interleaveSections($sections);
     }
-    
+
     /**
      * Generate highlight sections
      *
@@ -151,14 +153,14 @@ class TemplateGenerationService
     {
         $sections = [];
         $template = $this->loadTemplate('highlight');
-        
+
         foreach ($newsItems as $news) {
             $sections[] = $this->replaceNewsPlaceholders($template, $news);
         }
-        
+
         return $sections;
     }
-    
+
     /**
      * Generate normal news sections
      *
@@ -169,10 +171,10 @@ class TemplateGenerationService
     {
         $sections = [];
         $template = $this->loadTemplate('normal');
-        
+
         // Group in chunks of 3
         $chunks = array_chunk($newsItems, 3);
-        
+
         foreach ($chunks as $chunk) {
             $sectionHtml = '';
             foreach ($chunk as $news) {
@@ -180,10 +182,10 @@ class TemplateGenerationService
             }
             $sections[] = $sectionHtml;
         }
-        
+
         return $sections;
     }
-    
+
     /**
      * Generate grid news sections
      *
@@ -195,28 +197,28 @@ class TemplateGenerationService
         $sections = [];
         $gridTemplate = $this->loadTemplate('grid');
         $itemTemplate = $this->loadTemplate('item');
-        
+
         // Group in chunks of 3
         $chunks = array_chunk($newsItems, 3);
-        
+
         foreach ($chunks as $chunk) {
             $gridHtml = $gridTemplate;
-            
+
             // Replace each item placeholder
             foreach ($chunk as $news) {
                 $itemHtml = $this->replaceNewsPlaceholders($itemTemplate, $news);
                 $gridHtml = $this->replaceFirst('-- ITEM --', $itemHtml, $gridHtml);
             }
-            
+
             // Clear any remaining item placeholders
             $gridHtml = str_replace('-- ITEM --', '', $gridHtml);
-            
+
             $sections[] = $gridHtml;
         }
-        
+
         return $sections;
     }
-    
+
     /**
      * Replace news placeholders in template
      *
@@ -233,14 +235,14 @@ class TemplateGenerationService
             '__img__' => esc_url($news->getFeaturedImageUrl() ?? $this->getDefaultImageUrl()),
             '__area__' => $this->escapeHtml($news->getResearchLine() ?? ''),
         ];
-        
+
         return str_replace(
             array_keys($replacements),
             array_values($replacements),
             $template
         );
     }
-    
+
     /**
      * Interleave sections with spacers
      *
@@ -252,22 +254,22 @@ class TemplateGenerationService
         if (empty($sections)) {
             return '';
         }
-        
+
         $spacer = $this->loadTemplate('space');
         $result = '';
-        
+
         foreach ($sections as $index => $section) {
             $result .= $section;
-            
+
             // Add spacer between sections (not after the last one)
             if ($index < count($sections) - 1) {
                 $result .= $spacer;
             }
         }
-        
+
         return $result;
     }
-    
+
     /**
      * Replace first occurrence of string
      *
@@ -284,7 +286,7 @@ class TemplateGenerationService
         }
         return $subject;
     }
-    
+
     /**
      * Post-process HTML
      *
@@ -296,13 +298,13 @@ class TemplateGenerationService
         // Clean up extra whitespace
         $html = preg_replace('/\s+/', ' ', $html);
         $html = preg_replace('/>\s+</', '><', $html);
-        
+
         // Ensure proper encoding
         $html = mb_convert_encoding($html, 'UTF-8', 'auto');
-        
+
         return $html;
     }
-    
+
     /**
      * Escape HTML
      *
@@ -313,7 +315,7 @@ class TemplateGenerationService
     {
         return htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
-    
+
     /**
      * Format date
      *
@@ -323,19 +325,27 @@ class TemplateGenerationService
     private function formatDate(\DateTimeInterface $date): string
     {
         $months = [
-            1 => 'January', 2 => 'February', 3 => 'March',
-            4 => 'April', 5 => 'May', 6 => 'June',
-            7 => 'July', 8 => 'August', 9 => 'September',
-            10 => 'October', 11 => 'November', 12 => 'December'
+            1 => 'January',
+            2 => 'February',
+            3 => 'March',
+            4 => 'April',
+            5 => 'May',
+            6 => 'June',
+            7 => 'July',
+            8 => 'August',
+            9 => 'September',
+            10 => 'October',
+            11 => 'November',
+            12 => 'December'
         ];
-        
+
         $day = $date->format('j');
-        $month = $months[(int)$date->format('n')];
+        $month = $months[(int) $date->format('n')];
         $year = $date->format('Y');
-        
+
         return "{$day} {$month} {$year}";
     }
-    
+
     /**
      * Get default image URL
      *
@@ -345,7 +355,7 @@ class TemplateGenerationService
     {
         return pluginUrl('assets/img/email_logo.png');
     }
-    
+
     /**
      * Generate confirmation email HTML
      *
@@ -357,24 +367,24 @@ class TemplateGenerationService
     public function generateConfirmationEmail(string $confirmationUrl, string $email): string
     {
         $template = file_get_contents(RIILSA_PATH_TEMPLATE_CONFIRM);
-        
+
         if ($template === false) {
             throw new \RuntimeException('Failed to load confirmation email template');
         }
-        
+
         $replacements = [
             '-- URL --' => esc_url($confirmationUrl),
             '-- EMAIL --' => $this->escapeHtml($email),
             '-- DATE --' => $this->formatDate(new \DateTime()),
         ];
-        
+
         return str_replace(
             array_keys($replacements),
             array_values($replacements),
             $template
         );
     }
-    
+
     /**
      * Compile template with MJML (if available)
      *
@@ -391,13 +401,13 @@ class TemplateGenerationService
             debugLog('MJML not available, using HTML template directly', 'warning');
             return $mjmlTemplate;
         }
-        
+
         // Write template to temporary file
         $tempInput = tempnam(sys_get_temp_dir(), 'mjml_input_');
         $tempOutput = tempnam(sys_get_temp_dir(), 'mjml_output_');
-        
+
         file_put_contents($tempInput, $mjmlTemplate);
-        
+
         // Execute MJML
         $command = sprintf(
             '%s %s -o %s',
@@ -405,27 +415,27 @@ class TemplateGenerationService
             escapeshellarg($tempInput),
             escapeshellarg($tempOutput)
         );
-        
+
         exec($command, $output, $returnCode);
-        
+
         // Clean up temp files
         @unlink($tempInput);
-        
+
         if ($returnCode !== 0) {
             @unlink($tempOutput);
             throw new \RuntimeException('MJML compilation failed: ' . implode("\n", $output));
         }
-        
+
         $html = file_get_contents($tempOutput);
         @unlink($tempOutput);
-        
+
         if ($html === false) {
             throw new \RuntimeException('Failed to read MJML output');
         }
-        
+
         return $html;
     }
-    
+
     /**
      * Get MJML executable path
      *
@@ -439,13 +449,13 @@ class TemplateGenerationService
             '/usr/bin/mjml',
             'mjml', // In PATH
         ];
-        
+
         foreach ($paths as $path) {
             if (is_executable($path)) {
                 return $path;
             }
         }
-        
+
         // Check if available via npm
         $npmPath = trim(shell_exec('which npm 2>/dev/null') ?: '');
         if ($npmPath) {
@@ -454,7 +464,7 @@ class TemplateGenerationService
                 return $mjmlPath;
             }
         }
-        
+
         return null;
     }
 }

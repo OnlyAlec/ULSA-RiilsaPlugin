@@ -30,7 +30,7 @@ interface NewsletterRepositoryInterface
      * @return Newsletter|null
      */
     public function findById(int $id): ?Newsletter;
-    
+
     /**
      * Find a newsletter by number
      *
@@ -38,7 +38,7 @@ interface NewsletterRepositoryInterface
      * @return Newsletter|null
      */
     public function findByNumber(int $number): ?Newsletter;
-    
+
     /**
      * Get all newsletters
      *
@@ -54,7 +54,7 @@ interface NewsletterRepositoryInterface
         ?int $limit = null,
         int $offset = 0
     ): array;
-    
+
     /**
      * Get newsletters by status
      *
@@ -68,7 +68,7 @@ interface NewsletterRepositoryInterface
         ?int $limit = null,
         int $offset = 0
     ): array;
-    
+
     /**
      * Get newsletters by multiple statuses
      *
@@ -82,7 +82,7 @@ interface NewsletterRepositoryInterface
         ?int $limit = null,
         int $offset = 0
     ): array;
-    
+
     /**
      * Get newsletters scheduled for a specific date range
      *
@@ -90,7 +90,7 @@ interface NewsletterRepositoryInterface
      * @return array<Newsletter>
      */
     public function findScheduledInRange(DateRange $dateRange): array;
-    
+
     /**
      * Get newsletters sent within a date range
      *
@@ -98,21 +98,21 @@ interface NewsletterRepositoryInterface
      * @return array<Newsletter>
      */
     public function findSentInRange(DateRange $dateRange): array;
-    
+
     /**
      * Get the last newsletter number
      *
      * @return int
      */
     public function getLastNewsletterNumber(): int;
-    
+
     /**
      * Get the next available newsletter number
      *
      * @return int
      */
     public function getNextNewsletterNumber(): int;
-    
+
     /**
      * Save a newsletter (insert or update)
      *
@@ -121,7 +121,7 @@ interface NewsletterRepositoryInterface
      * @throws \RuntimeException If save fails
      */
     public function save(Newsletter $newsletter): Newsletter;
-    
+
     /**
      * Delete a newsletter
      *
@@ -130,7 +130,7 @@ interface NewsletterRepositoryInterface
      * @throws \RuntimeException If delete fails
      */
     public function delete(Newsletter $newsletter): bool;
-    
+
     /**
      * Delete a newsletter by ID
      *
@@ -139,7 +139,7 @@ interface NewsletterRepositoryInterface
      * @throws \RuntimeException If delete fails
      */
     public function deleteById(int $id): bool;
-    
+
     /**
      * Check if a newsletter exists by number
      *
@@ -147,7 +147,7 @@ interface NewsletterRepositoryInterface
      * @return bool
      */
     public function existsByNumber(int $number): bool;
-    
+
     /**
      * Count newsletters by criteria
      *
@@ -155,7 +155,7 @@ interface NewsletterRepositoryInterface
      * @return int
      */
     public function count(array $criteria = []): int;
-    
+
     /**
      * Count newsletters by status
      *
@@ -163,14 +163,14 @@ interface NewsletterRepositoryInterface
      * @return int
      */
     public function countByStatus(NewsletterStatus $status): int;
-    
+
     /**
      * Get newsletter statistics
      *
      * @return array
      */
     public function getStatistics(): array;
-    
+
     /**
      * Update newsletter statistics
      *
@@ -179,44 +179,28 @@ interface NewsletterRepositoryInterface
      * @return bool
      */
     public function updateStatistics(int $newsletterId, array $statistics): bool;
-    
+
     /**
      * Get newsletters ready to be sent
      *
      * @return array<Newsletter>
      */
     public function findReadyToSend(): array;
-    
-    /**
-     * Lock a newsletter for sending (prevent concurrent sends)
-     *
-     * @param int $newsletterId
-     * @return bool
-     */
-    public function lockForSending(int $newsletterId): bool;
-    
-    /**
-     * Unlock a newsletter after sending
-     *
-     * @param int $newsletterId
-     * @return bool
-     */
-    public function unlockAfterSending(int $newsletterId): bool;
-    
+
     /**
      * Begin a transaction
      *
      * @return void
      */
     public function beginTransaction(): void;
-    
+
     /**
      * Commit a transaction
      *
      * @return void
      */
     public function commit(): void;
-    
+
     /**
      * Rollback a transaction
      *

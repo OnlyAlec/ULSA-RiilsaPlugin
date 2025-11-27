@@ -154,7 +154,15 @@ interface CallRepositoryInterface
     public function deleteById(int $id): bool;
     
     /**
-     * Check if a call exists by external ID
+     * Check if call exists by title
+     *
+     * @param string $title
+     * @return bool
+     */
+    public function existsByTitle(string $title): bool;
+    
+    /**
+     * Check if call exists by external ID
      *
      * @param string $externalId
      * @return bool

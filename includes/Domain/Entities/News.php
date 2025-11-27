@@ -27,98 +27,98 @@ class News
      * @var int|null
      */
     private ?int $id = null;
-    
+
     /**
      * External ID from source system
      *
      * @var string
      */
     private string $externalId;
-    
+
     /**
      * News title
      *
      * @var string
      */
     private string $title;
-    
+
     /**
      * Two bullet points
      *
      * @var string
      */
     private string $bullets;
-    
+
     /**
      * News body content
      *
      * @var string
      */
     private string $content;
-    
+
     /**
      * Contact information
      *
      * @var string|null
      */
     private ?string $contactInfo = null;
-    
+
     /**
      * Newsletter number this news belongs to
      *
      * @var int|null
      */
     private ?int $newsletterNumber = null;
-    
+
     /**
      * Featured image URL
      *
      * @var string|null
      */
     private ?string $featuredImageUrl = null;
-    
+
     /**
      * Research line (LGAC)
      *
      * @var string|null
      */
     private ?string $researchLine = null;
-    
+
     /**
      * Position in newsletter (highlight, normal, grid)
      *
      * @var string
      */
     private string $position = 'normal';
-    
+
     /**
      * Post status
      *
      * @var PostStatus
      */
     private PostStatus $postStatus;
-    
+
     /**
      * Creation date
      *
      * @var \DateTimeImmutable
      */
     private \DateTimeImmutable $createdAt;
-    
+
     /**
      * Last update date
      *
      * @var \DateTimeImmutable|null
      */
     private ?\DateTimeImmutable $updatedAt = null;
-    
+
     /**
      * Publication date
      *
      * @var \DateTimeImmutable|null
      */
     private ?\DateTimeImmutable $publishedAt = null;
-    
+
     /**
      * Constructor
      *
@@ -126,27 +126,71 @@ class News
      */
     public function __construct(array $data)
     {
-        $this->externalId = (string)($data['externalId'] ?? $data['id'] ?? '');
-        $this->title = $data['title'];
-        $this->bullets = $data['bullets'] ?? '';
+        // Handle internal ID
+        $internalId = $data['id'] ?? null;
+        if (is_array($internalId)) {
+            $this->id = isset($internalId[0]) && is_numeric($internalId[0]) ? (int) $internalId[0] : null;
+        } elseif (is_numeric($internalId)) {
+            $this->id = (int) $internalId;
+        } else {
+            $this->id = null;
+        }
+
+        // Handle external ID
+        $externalId = $data['externalId'] ?? $data['id'] ?? '';
+        $this->externalId = is_array($externalId) ? (string) ($externalId[0] ?? '') : (string) $externalId;
+
+        $this->title = is_array($data['title']) ? (string) ($data['title'][0] ?? '') : (string) $data['title'];
+
+        $bullets = $data['bullets'] ?? '';
+        if (is_array($bullets)) {
+            $this->bullets = implode("\n", $bullets);
+        } else {
+            $this->bullets = (string) $bullets;
+        }
+
         $this->content = $data['content'] ?? '';
-        
+
         // Optional fields
-        $this->contactInfo = $data['contactInfo'] ?? null;
-        $this->newsletterNumber = isset($data['newsletterNumber']) ? (int)$data['newsletterNumber'] : null;
-        $this->featuredImageUrl = $data['featuredImageUrl'] ?? null;
-        $this->researchLine = $data['researchLine'] ?? null;
-        $this->position = $data['position'] ?? 'normal';
-        
+        $contactInfo = $data['contactInfo'] ?? null;
+        if (is_array($contactInfo)) {
+            $this->contactInfo = implode("\n", $contactInfo);
+        } else {
+            $this->contactInfo = $contactInfo !== null ? (string) $contactInfo : null;
+        }
+
+        $this->newsletterNumber = isset($data['newsletterNumber']) ? (int) $data['newsletterNumber'] : null;
+
+        $featuredImageUrl = $data['featuredImageUrl'] ?? null;
+        if (is_array($featuredImageUrl)) {
+            $this->featuredImageUrl = isset($featuredImageUrl[0]) ? (string) $featuredImageUrl[0] : null;
+        } else {
+            $this->featuredImageUrl = $featuredImageUrl !== null ? (string) $featuredImageUrl : null;
+        }
+
+        $researchLine = $data['researchLine'] ?? null;
+        if (is_array($researchLine)) {
+            $this->researchLine = isset($researchLine[0]) ? (string) $researchLine[0] : null;
+        } else {
+            $this->researchLine = $researchLine !== null ? (string) $researchLine : null;
+        }
+
+        $position = $data['position'] ?? 'normal';
+        if (is_array($position)) {
+            $this->position = isset($position[0]) ? (string) $position[0] : 'normal';
+        } else {
+            $this->position = (string) $position;
+        }
+
         // Status fields
         $this->postStatus = $data['postStatus'] ?? PostStatus::PENDING;
-        
+
         // Dates
         $this->createdAt = $data['createdAt'] ?? new \DateTimeImmutable();
         $this->updatedAt = $data['updatedAt'] ?? null;
         $this->publishedAt = $data['publishedAt'] ?? null;
     }
-    
+
     /**
      * Create from Excel data
      *
@@ -164,12 +208,12 @@ class News
             'newsletterNumber' => $excelData['numero'] ?? null,
             'featuredImageUrl' => $excelData['imagen'] ?? null,
             'researchLine' => $excelData['linea'] ?? null,
-            'createdAt' => isset($excelData['marca']) 
-                ? new \DateTimeImmutable($excelData['marca']) 
+            'createdAt' => isset($excelData['marca'])
+                ? new \DateTimeImmutable($excelData['marca'])
                 : new \DateTimeImmutable(),
         ]);
     }
-    
+
     /**
      * Create from WordPress post
      *
@@ -193,14 +237,14 @@ class News
             'postStatus' => PostStatus::tryFromWordPress($post->post_status) ?? PostStatus::DRAFT,
             'createdAt' => new \DateTimeImmutable($post->post_date),
             'updatedAt' => new \DateTimeImmutable($post->post_modified),
-            'publishedAt' => $post->post_status === 'publish' 
-                ? new \DateTimeImmutable($post->post_date) 
+            'publishedAt' => $post->post_status === 'publish'
+                ? new \DateTimeImmutable($post->post_date)
                 : null,
         ];
-        
+
         return new self($data);
     }
-    
+
     /**
      * Extract research line from post taxonomies
      *
@@ -215,79 +259,79 @@ class News
         }
         return null;
     }
-    
+
     // Getters
-    
+
     public function getId(): ?int
     {
         return $this->id;
     }
-    
+
     public function getExternalId(): string
     {
         return $this->externalId;
     }
-    
+
     public function getTitle(): string
     {
         return $this->title;
     }
-    
+
     public function getBullets(): string
     {
         return $this->bullets;
     }
-    
+
     public function getContent(): string
     {
         return $this->content;
     }
-    
+
     public function getContactInfo(): ?string
     {
         return $this->contactInfo;
     }
-    
+
     public function getNewsletterNumber(): ?int
     {
         return $this->newsletterNumber;
     }
-    
+
     public function getFeaturedImageUrl(): ?string
     {
         return $this->featuredImageUrl;
     }
-    
+
     public function getResearchLine(): ?string
     {
         return $this->researchLine;
     }
-    
+
     public function getPosition(): string
     {
         return $this->position;
     }
-    
+
     public function getPostStatus(): PostStatus
     {
         return $this->postStatus;
     }
-    
+
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
     }
-    
+
     public function getUpdatedAt(): ?\DateTimeImmutable
     {
         return $this->updatedAt;
     }
-    
+
     public function getPublishedAt(): ?\DateTimeImmutable
     {
         return $this->publishedAt;
     }
-    
+
     /**
      * Get the excerpt for newsletter display
      *
@@ -299,15 +343,15 @@ class News
         if (!empty($this->bullets)) {
             return $this->bullets;
         }
-        
+
         $content = strip_tags($this->content);
         if (strlen($content) <= $length) {
             return $content;
         }
-        
+
         return substr($content, 0, $length) . '...';
     }
-    
+
     /**
      * Get the URL for the news item
      *
@@ -320,14 +364,14 @@ class News
         }
         return '';
     }
-    
+
     // Setters for mutable properties
-    
+
     public function setId(int $id): void
     {
         $this->id = $id;
     }
-    
+
     public function setPosition(string $position): void
     {
         if (!in_array($position, ['highlight', 'normal', 'grid'])) {
@@ -336,40 +380,40 @@ class News
         $this->position = $position;
         $this->updatedAt = new \DateTimeImmutable();
     }
-    
+
     public function updatePostStatus(PostStatus $status): void
     {
         $this->postStatus = $status;
         $this->updatedAt = new \DateTimeImmutable();
-        
+
         if ($status === PostStatus::PUBLISHED && !$this->publishedAt) {
             $this->publishedAt = new \DateTimeImmutable();
         }
     }
-    
+
     public function assignToNewsletter(int $newsletterNumber): void
     {
         $this->newsletterNumber = $newsletterNumber;
         $this->updatedAt = new \DateTimeImmutable();
     }
-    
+
     // Business logic
-    
+
     public function isPublished(): bool
     {
         return $this->postStatus === PostStatus::PUBLISHED;
     }
-    
+
     public function canBeAddedToNewsletter(): bool
     {
         return $this->isPublished();
     }
-    
+
     public function isInNewsletter(): bool
     {
         return $this->newsletterNumber !== null;
     }
-    
+
     /**
      * Convert to array for persistence
      *

@@ -19,6 +19,7 @@ use RIILSA\Domain\Entities\News;
 use RIILSA\Domain\Repositories\NewsletterRepositoryInterface;
 use RIILSA\Domain\Repositories\NewsRepositoryInterface;
 use RIILSA\Domain\Services\NewsletterContentService;
+use function RIILSA\Core\debugLog;
 
 /**
  * Use case for generating newsletters
@@ -38,7 +39,7 @@ class GenerateNewsletterUseCase
         private readonly TemplateGenerationService $templateService
     ) {
     }
-    
+
     /**
      * Execute the use case
      *
@@ -54,69 +55,69 @@ class GenerateNewsletterUseCase
                     ['Invalid news IDs provided']
                 );
             }
-            
+
             // Fetch news items
             $newsItems = $this->newsRepository->findByIds($dto->newsIds);
-            
+
             if (empty($newsItems)) {
                 return NewsletterGenerationResultDTO::failure(
                     ['No valid news items found']
                 );
             }
-            
+
             // Create or get newsletter
             $newsletter = $this->getOrCreateNewsletter($dto);
-            
+
             // Categorize news items
             $categorizedNews = $this->contentService->categorizeNewsItems(
                 $newsItems,
                 $dto->newsIds
             );
-            
+
             // Add categorized news to newsletter
             foreach ($categorizedNews as $category => $items) {
                 $newsletter->addCategorizedNews($category, $items);
             }
-            
+
             // Generate HTML content
             $html = $this->templateService->generateNewsletterHtml($newsletter);
             $newsletter->setHtmlContent($html);
-            
+
             // Validate newsletter content
             $validation = $this->contentService->validateNewsletterContent($newsletter);
             if (!$validation['valid']) {
                 return NewsletterGenerationResultDTO::failure($validation['errors']);
             }
-            
+
             // Save if requested
             if ($dto->updateDatabase) {
                 $newsletter = $this->newsletterRepository->save($newsletter);
-                
+
                 // Update news items with newsletter association
                 $this->newsRepository->updateNewsletterAssociation(
                     $dto->newsIds,
                     $newsletter->getNumber()
                 );
             }
-            
+
             // Get statistics
             $statistics = $this->contentService->getContentStatistics($newsletter);
-            
+
             return NewsletterGenerationResultDTO::success(
                 html: $html,
                 newsletterId: $newsletter->getId() ?? 0,
                 statistics: $statistics
             );
-            
+
         } catch (\Exception $e) {
             debugLog('Newsletter generation error: ' . $e->getMessage(), 'error');
-            
+
             return NewsletterGenerationResultDTO::failure([
                 'Newsletter generation failed: ' . $e->getMessage()
             ]);
         }
     }
-    
+
     /**
      * Get existing newsletter or create new one
      *
@@ -128,28 +129,22 @@ class GenerateNewsletterUseCase
     {
         // Check if newsletter already exists
         $existing = $this->newsletterRepository->findByNumber($dto->newsletterNumber);
-        
+
         if ($existing) {
-            // Check if it can be edited
-            if (!$existing->canEdit()) {
-                throw new \RuntimeException(sprintf(
-                    'Newsletter #%d cannot be edited in its current status: %s',
-                    $existing->getNumber(),
-                    $existing->getStatus()->label()
-                ));
-            }
-            
-            // Update header text
+            $oldId = $existing->getId();
             $existing = new Newsletter(
                 $existing->getNumber(),
                 $dto->headerText,
                 $dto->newsIds
             );
-            $existing->setId($existing->getId());
-            
+
+            if ($oldId !== null) {
+                $existing->setId($oldId);
+            }
+
             return $existing;
         }
-        
+
         // Create new newsletter
         return new Newsletter(
             $dto->newsletterNumber,

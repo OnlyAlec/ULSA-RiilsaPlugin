@@ -116,6 +116,14 @@ class Container implements ContainerInterface
     private function getDefinitions(): array
     {
         return [
+            // Self binding
+            self::class => function () {
+                return self::getInstance();
+            },
+            ContainerInterface::class => function () {
+                return self::getInstance();
+            },
+
             // Repository bindings
             ProjectRepositoryInterface::class => \DI\autowire(WordPressProjectRepository::class),
             NewsRepositoryInterface::class => \DI\autowire(WordPressNewsRepository::class),

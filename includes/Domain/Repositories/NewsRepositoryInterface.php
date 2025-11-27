@@ -184,6 +184,14 @@ interface NewsRepositoryInterface
     public function deleteById(int $id): bool;
     
     /**
+     * Check if news exists by title
+     *
+     * @param string $title
+     * @return bool
+     */
+    public function existsByTitle(string $title): bool;
+    
+    /**
      * Check if a news item exists by external ID
      *
      * @param string $externalId
